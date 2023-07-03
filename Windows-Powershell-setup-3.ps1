@@ -4,7 +4,7 @@ netsh DHCP add SecurityGroups; # Adds
 Restart-Service dhcpserver
 
 
-
+<#
 Add-DhcpServerv4Scope -name "IT-Prods DHCP" -StartRange 192.168.20.1 -EndRange 192.168.20.254 -SubnetMask 255.255.255.0 -State Active
 
 Add-DhcpServerv4ExclusionRange -ScopeID 192.168.20.0 -StartRange 192.168.20.1 -EndRange 192.168.20.20
@@ -19,6 +19,7 @@ Set-DhcpServerDnsCredential -Credential $Credential -ComputerName "IT-Prods-DCSe
 
 
 
+
 New-ADOrganizationalUnit -Name "Supporter"; # Makes a OU/Organizational Unit with the name Supportere
 New-ADOrganizationalUnit -Name "Produktion"; # Makes a OU/Organizational Unit with the name Produktion
 New-ADOrganizationalUnit -Name "Levering"; # Makes a OU/Organizational Unit with the name Levering
@@ -28,26 +29,24 @@ New-ADOrganizationalUnit -Name "Levering"; # Makes a OU/Organizational Unit with
 New-ADGroup -Name Supporter -GroupCategory Security -GroupScope Global -DisplayName 'Supporter Afdeling' -Path "OU=Supporter,DC=IT-Prods,DC=local"; # Makes a new Security Group with the name 'Supportere' and adds it to the OU named Supporter
 New-ADGroup -Name Produktion -GroupCategory Security -GroupScope Global -DisplayName 'Produktions Afdeling' -Path "OU=Produktion,DC=IT-Prods,DC=local"; # Makes a new Security Group with the name 'Produktion' and adds it to the OU named Produktion
 New-ADGroup -Name Levering -GroupCategory Security -GroupScope Global -DisplayName 'Leverings Afdeling' -Path "OU=Levering,DC=IT-Prods,DC=local"; # Makes a new Security Group with the name 'Levering' and adds it to the OU named Levering
-
-
 #>
-<#
+
+
 mkdir 'C:\Share Folders'
-mkdir 'C:\Share Folders\Global'
+mkdir 'C:\Share Folders\Global Drev'
 $GlobalParametre = @{
     Name = 'Global Drev'
-    Path = 'C:\Share Folders\Global'
+    Path = 'C:\Share Folders\Global Drev'
     FullAccess = 'Administrators'
     ChangeAccess = 'IT-Prods\Produktion', 'IT-Prods\Levering', 'IT-Prods\Supporter'
 }
 New-SmbShare @GlobalParametre
-#>
 
 mkdir 'C:\Share Folders\Produktion'
 $ProduktionsParametre = @{
     Name = 'Produktion'
     Path = 'C:\Share Folders\Produktion'
-    FullAccess = 'Administrators'
+    FullAccess = 'Administrators', 'IT-Prods\Supporter'
     ChangeAccess = 'IT-Prods\Produktion' 
     ReadAccess = 'IT-Prods\Levering'
 }
@@ -62,9 +61,8 @@ $SupporterParametre = @{
 }
 New-SmbShare @SupporterParametre
 
-
 mkdir 'C:\Share Folders\Levering'
-$LeveringsParametre = @{
+$SupporterParametre = @{
     Name = 'Levering'
     Path = 'C:\Share Folders\Levering'
     FullAccess = 'Administrators'
@@ -72,10 +70,9 @@ $LeveringsParametre = @{
 }
 New-SmbShare @LeveringsParametre
 
+New-PSDrive -Name "G" -PSProvider "FileSystem" -Root "C:\Share Folders\share-folder" -Persist -Credential $Credential; # Creates a drivemap named 'share-folder' at the stated location that can be used by all
 
-New-PSDrive -Name "G" -PSProvider "FileSystem" -Root "C:\Share Folders\Global" -Persist -Credential $Credential; # Creates a drivemap named 'share-folder' at the stated location that can be used by all
-
-
+<#
 New-PSDrive -Name "H" -PSProvider "FileSystem" -Root "C:\Share Folders\Levering" -Credential $Credential
 $Acl = Get-Acl "H:"; # Gets the 'Levering' drive map ready to be configured
 $ArLevering = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Levering","ReadAndExecute","Allow");
@@ -119,8 +116,8 @@ $Acl.SetAccessRule($ArSupporterWrite);
 $Acl.SetAccessRule($ArProduktion);
 Set-Acl "C:\Share Folders\Produktion" $Acl;
 New-ItemProperty -Path "HKCU:\Network" -Name "Produktion" -Value "K:" -PropertyType String; # Automatically maps 'Produktion' on startup
-#>
 
 
 
 E:\AD-User-Creation.ps1; # Runs the AD User Creation powershell script
+#>
