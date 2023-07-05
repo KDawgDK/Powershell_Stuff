@@ -34,7 +34,6 @@ mkdir 'C:\Share-Folders\Global'
 <#
 $GlobalParameter = @{
     Name = 'Global'
-    PSProvider = "FileSystem"
     Path = 'C:\Share-Folders\Global'
     ChangeAccess = 'IT-Prods\Produktion', 'IT-Prods\Supporter', 'IT-Prods\Levering'
 }#>
@@ -44,7 +43,6 @@ New-SmbShare -Name 'Global' -Path 'C:\Share-Folders\Global' -FullAccess 'Adminis
 mkdir 'C:\Share-Folders\Produktion'
 $ProduktionsParameter = @{
     Name = 'Produktion'
-    PSProvider = "FileSystem"
     Path = 'C:\Share-Folders\Produktion'
     FullAccess = 'Administrators'
     ChangeAccess = 'IT-Prods\Produktion' 
@@ -56,26 +54,24 @@ mkdir 'C:\Share-Folders\Supporter'
 <#
 $SupporterParameter = @{
     Name = 'Supporter'
-    PSProvider = "FileSystem"
     Path = 'C:\Share-Folders\Supporter'
     FullAccess = 'Administrators'
     ChangeAccess = 'IT-Prods\Supporter'
 }
 #>
 #New-SmbShare @SupporterParameter
-New-SmbShare -Name 'Supporter' -PSProvider "FileSystem" -Path 'C:\Share-Folders\Supporter' -FullAccess 'Administrators' -ChangeAccess 'IT-Prods\Supporter'
+New-SmbShare -Name 'Supporter' -Path 'C:\Share-Folders\Supporter' -FullAccess 'Administrators' -ChangeAccess 'IT-Prods\Supporter'
 <#
 mkdir 'C:\Share-Folders\Levering'
 $SupporterParameter = @{
     Name = 'Levering'
-    PSProvider = "FileSystem"
     Path = 'C:\Share-Folders\Levering'
     FullAccess = 'Administrators'
     ChangeAccess = 'IT-Prods\Levering'
 }
 New-SmbShare @LeveringsParameter
 #>
-New-PSDrive -Name "G" -PSProvider "FileSystem" -Root "C:\Share-Folders\share-folder" -Persist -Credential $Credential; # Creates a drivemap named 'share-folder' at the stated location that can be used by all
+New-PSDrive -Name "G" -PSProvider "FileSystem" -Root "C:\Share-Folders\share-folder" -Credential $Credential; # Creates a drivemap named 'share-folder' at the stated location that can be used by all
 
 <#
 New-PSDrive -Name "H" -PSProvider "FileSystem" -Root "C:\Share-Folders\Levering" -Credential $Credential
@@ -153,6 +149,22 @@ foreach ($User in $ADUsers) {
 
         # User does not exist then proceed to create the new user account
         # Account will be created in the OU provided by the $OU variable read from the CSV file
+        $NewUserParams = @{
+            SamAccountName = $username
+            UserPrincipalName= "$username@$UPN"
+            Name = "$firstname $lastname"
+            GivenName = $firstname
+            Surname = $lastname
+            Enabled = $True
+            DisplayName = "$lastname, $firstname"
+            Department  = $Department
+            Path = $OU
+            EmailAddress = $email
+            AccountPassword = (ConvertTo-secureString $password -AsPlainText -Force) 
+            ChangePasswordAtLogon = $False
+        }
+        New-ADUser @NewUserParams
+        <#
         New-ADUser `
             -SamAccountName $username `
             -UserPrincipalName "$username@$UPN" `
@@ -164,12 +176,20 @@ foreach ($User in $ADUsers) {
             -Department  $Department `
             -Path $OU `
             -EmailAddress $email `
-            -AccountPassword (ConvertTo-secureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False
+            -AccountPassword (ConvertTo-secureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False;
+        #>
+        $UserGroupParams = @{
+            Identity = $Department
+            Members = $username
+        }
+        Add-ADGroupMember @UserGroupParams
+        <#
         Add-ADGroupMember `
             -Identity $Department `
-            -Members $username 
+            -Members $username;
             # If user is created, show message.
         Write-Host "The user account $username is created and added to its Security Group." -ForegroundColor Cyan
+        #>
     }
 }
 
