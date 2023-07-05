@@ -31,45 +31,54 @@ New-ADGroup -Name Levering -GroupCategory Security -GroupScope Global -DisplayNa
 
 mkdir 'C:\Share-Folders'
 mkdir 'C:\Share-Folders\Global'
+<#
 $GlobalParameter = @{
     Name = 'Global'
+    PSProvider = "FileSystem"
     Path = 'C:\Share-Folders\Global'
     ChangeAccess = 'IT-Prods\Produktion', 'IT-Prods\Supporter', 'IT-Prods\Levering'
-}
-New-SmbShare @GlobalParameter
-
+}#>
+#New-SmbShare @GlobalParameter
+New-SmbShare -Name 'Global' -Path 'C:\Share-Folders\Global' -FullAccess 'Administrators' -ChangeAccess 'IT-Prods\Produktion', 'IT-Prods\Supporter', 'IT-Prods\Levering'
+<#
 mkdir 'C:\Share-Folders\Produktion'
 $ProduktionsParameter = @{
     Name = 'Produktion'
+    PSProvider = "FileSystem"
     Path = 'C:\Share-Folders\Produktion'
     FullAccess = 'Administrators'
     ChangeAccess = 'IT-Prods\Produktion' 
     ReadAccess = 'IT-Prods\Levering'
 }
 New-SmbShare @ProduktionsParameter
-
-mkdir 'C:\Share-Folders\Supportere'
+#>
+mkdir 'C:\Share-Folders\Supporter'
+<#
 $SupporterParameter = @{
-    Name = 'Supportere'
-    Path = 'C:\Share-Folders\Supportere'
+    Name = 'Supporter'
+    PSProvider = "FileSystem"
+    Path = 'C:\Share-Folders\Supporter'
     FullAccess = 'Administrators'
     ChangeAccess = 'IT-Prods\Supporter'
 }
-New-SmbShare @SupporterParameter
+#>
+#New-SmbShare @SupporterParameter
+New-SmbShare -Name 'Supporter' -PSProvider "FileSystem" -Path 'C:\Share-Folders\Supporter' -FullAccess 'Administrators' -ChangeAccess 'IT-Prods\Supporter'
 <#
 mkdir 'C:\Share-Folders\Levering'
 $SupporterParameter = @{
     Name = 'Levering'
+    PSProvider = "FileSystem"
     Path = 'C:\Share-Folders\Levering'
     FullAccess = 'Administrators'
     ChangeAccess = 'IT-Prods\Levering'
 }
 New-SmbShare @LeveringsParameter
 #>
-New-PSDrive -Name "G" -PSProvider "FileSystem" -Root "C:\Share Folders\share-folder" -Persist -Credential $Credential; # Creates a drivemap named 'share-folder' at the stated location that can be used by all
+New-PSDrive -Name "G" -PSProvider "FileSystem" -Root "C:\Share-Folders\share-folder" -Persist -Credential $Credential; # Creates a drivemap named 'share-folder' at the stated location that can be used by all
 
-
-New-PSDrive -Name "H" -PSProvider "FileSystem" -Root "C:\Share Folders\Levering" -Credential $Credential
+<#
+New-PSDrive -Name "H" -PSProvider "FileSystem" -Root "C:\Share-Folders\Levering" -Credential $Credential
 $Acl = Get-Acl "H:"; # Gets the 'Levering' drive map ready to be configured
 $ArLevering = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Levering","ReadAndExecute","Allow");
 $ArLeveringWrite = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Levering","Write","Allow");
@@ -83,21 +92,21 @@ $Acl.SetAccessRule($ArSupporterWrite);
 $Acl.SetAccessRule($ArProduktion);
 Set-Acl "C:\Share Folders\Levering" $Acl;
 New-ItemProperty -Path "HKCU:\Network" -Name "Levering" -Value "H:" -PropertyType String; # Automatically maps 'Levering' on startup
+#>
 
 
-
-New-PSDrive -Name "J" -PSProvider "FileSystem" -Root "C:\Share Folders\Supportere" -Credential $Credential
+New-PSDrive -Name "J" -PSProvider "FileSystem" -Root "C:\Share-Folders\Supporter" -Credential $Credential
 $Acl = Get-Acl "J:"; # Gets the 'Supportere' drive map ready to be configured
 $ArSupporter = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Supporter","ReadAndExecute","Allow");
 $ArSupporterWrite = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Supporter","Write","Allow");
 $Acl.SetAccessRule($ArSupporter);
 $Acl.SetAccessRule($ArSupporterWrite);
-Set-Acl "C:\Share Folders\Supportere" $Acl;
-New-ItemProperty -Path "HKCU:\Network" -Name "Supportere" -Value "J:" -PropertyType String; # Automatically maps 'Supportere' on startup
+Set-Acl "C:\Share Folders\Supporter" $Acl;
+New-ItemProperty -Path "HKCU:\Network" -Name "Supporter" -Value "J:" -PropertyType String; # Automatically maps 'Supportere' on startup
 
 
-
-New-PSDrive -Name "K" -PSProvider "FileSystem" -Root "C:\Share Folders\Produktion" -Credential $Credential
+<#
+New-PSDrive -Name "K" -PSProvider "FileSystem" -Root "C:\Share-Folders\Produktion" -Credential $Credential
 $Acl = Get-Acl "K:"; # Gets the 'Produktion' drive map ready to be configured
 $ArLevering = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Levering","ReadAndExecute","Allow");
 $ArLeveringWrite = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Levering","Write","Allow");
@@ -113,8 +122,8 @@ $Acl.SetAccessRule($ArProduktion);
 Set-Acl "C:\Share Folders\Produktion" $Acl;
 New-ItemProperty -Path "HKCU:\Network" -Name "Produktion" -Value "K:" -PropertyType String; # Automatically maps 'Produktion' on startup
 
-
-
+#>
+<#
 # Store the data from NewUsersFinal.csv in the $ADUsers variable
 $ADUsers = Import-Csv E:\employee-automation.csv -Delimiter ";"
 
@@ -130,6 +139,7 @@ foreach ($User in $ADUsers) {
     $firstname = $User.firstname
     $lastname  = $User.lastname
     $OU        = $User.ou #This field refers to the OU the user account is to be created in
+    $SG        = $User.group
     $email     = $User.email
 
     # Check to see if the user already exists in AD
@@ -153,9 +163,13 @@ foreach ($User in $ADUsers) {
             -Path $OU `
             -EmailAddress $email `
             -AccountPassword (ConvertTo-secureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False `
-        # If user is created, show message.
-        Write-Host "The user account $username is created." -ForegroundColor Cyan
+        Add-ADGroupMember `
+            -Identity $SG`
+            -Members $username`
+            # If user is created, show message.
+        Write-Host "The user account $username is created and added to its Security Group." -ForegroundColor Cyan
     }
 }
 
 Read-Host -Prompt "Press Enter to exit"
+#>
