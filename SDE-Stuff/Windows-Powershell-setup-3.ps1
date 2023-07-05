@@ -134,13 +134,14 @@ $UPN = "it-prods.local"
 foreach ($User in $ADUsers) {
 
     #Read user data from each field in each row and assign the data to a variable as below
-    $username  = $User.username
-    $password  = $User.password
-    $firstname = $User.firstname
-    $lastname  = $User.lastname
-    $OU        = $User.ou #This field refers to the OU the user account is to be created in
-    $SG        = $User.group
-    $email     = $User.email
+    $username   = $User.username
+    $password   = $User.password
+    $firstname  = $User.firstname
+    $lastname   = $User.lastname
+    $OU         = $User.ou #This field refers to the OU the user account is to be created in
+    $email      = $User.email
+    $Department = $User.group
+
 
     # Check to see if the user already exists in AD
     if (Get-ADUser -F { SamAccountName -eq $username }) {
@@ -160,11 +161,12 @@ foreach ($User in $ADUsers) {
             -Surname $lastname `
             -Enabled $True `
             -DisplayName "$lastname, $firstname" `
+            -Department  $Department `
             -Path $OU `
             -EmailAddress $email `
             -AccountPassword (ConvertTo-secureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False
         Add-ADGroupMember `
-            -Identity $SG `
+            -Identity $Department `
             -Members $username 
             # If user is created, show message.
         Write-Host "The user account $username is created and added to its Security Group." -ForegroundColor Cyan
