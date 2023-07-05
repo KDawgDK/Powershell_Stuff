@@ -90,7 +90,7 @@ $Acl.SetAccessRule($ArLeveringWrite);
 $Acl.SetAccessRule($ArSupporter);
 $Acl.SetAccessRule($ArSupporterWrite);
 $Acl.SetAccessRule($ArProduktion);
-Set-Acl "C:\Share Folders\Levering" $Acl;
+Set-Acl "C:\Share-Folders\Levering" $Acl;
 New-ItemProperty -Path "HKCU:\Network" -Name "Levering" -Value "H:" -PropertyType String; # Automatically maps 'Levering' on startup
 #>
 
@@ -101,7 +101,7 @@ $ArSupporter = New-Object System.Security.AccessControl.FileSystemAccessRule("IT
 $ArSupporterWrite = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Supporter","Write","Allow");
 $Acl.SetAccessRule($ArSupporter);
 $Acl.SetAccessRule($ArSupporterWrite);
-Set-Acl "C:\Share Folders\Supporter" $Acl;
+Set-Acl "C:\Share-Folders\Supporter" $Acl;
 New-ItemProperty -Path "HKCU:\Network" -Name "Supporter" -Value "J:" -PropertyType String; # Automatically maps 'Supportere' on startup
 
 
@@ -119,7 +119,7 @@ $Acl.SetAccessRule($ArLeveringWrite);
 $Acl.SetAccessRule($ArSupporter);
 $Acl.SetAccessRule($ArSupporterWrite);
 $Acl.SetAccessRule($ArProduktion);
-Set-Acl "C:\Share Folders\Produktion" $Acl;
+Set-Acl "C:\Share-Folders\Produktion" $Acl;
 New-ItemProperty -Path "HKCU:\Network" -Name "Produktion" -Value "K:" -PropertyType String; # Automatically maps 'Produktion' on startup
 
 #>
