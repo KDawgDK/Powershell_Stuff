@@ -18,65 +18,103 @@ $Credential = Get-Credential -Credential "it-prods\Administrator"
 Set-DhcpServerDnsCredential -Credential $Credential -ComputerName "IT-Prods-DCServ"
 
 
+$OU1 = @{
+    Name = "Supporter"
+    Path = "DC=IT-Prods,DC=local"
+}
+New-ADOrganizationalUnit @OU1; # Makes a OU/Organizational Unit with the name Supporter
+$OU2 = @{
+    Name = "Produktion"
+    Path = "DC=IT-Prods,DC=local"
+}
+New-ADOrganizationalUnit @OU2; # Makes a OU/Organizational Unit with the name Produktion
+$OU3 = @{
+    Name = "Levering"
+    Path = "DC=IT-Prods,DC=local"
+}
+New-ADOrganizationalUnit @OU3; # Makes a OU/Organizational Unit with the name Levering
 
-New-ADOrganizationalUnit -Name "Supporter"; # Makes a OU/Organizational Unit with the name Supportere
-New-ADOrganizationalUnit -Name "Produktion"; # Makes a OU/Organizational Unit with the name Produktion
-New-ADOrganizationalUnit -Name "Levering"; # Makes a OU/Organizational Unit with the name Levering
 
-
-
-New-ADGroup -Name Supporter -GroupCategory Security -GroupScope Global -DisplayName 'Supporter Afdeling' -Path "OU=Supporter,DC=IT-Prods,DC=local"; # Makes a new Security Group with the name 'Supportere' and adds it to the OU named Supporter
-New-ADGroup -Name Produktion -GroupCategory Security -GroupScope Global -DisplayName 'Produktions Afdeling' -Path "OU=Produktion,DC=IT-Prods,DC=local"; # Makes a new Security Group with the name 'Produktion' and adds it to the OU named Produktion
-New-ADGroup -Name Levering -GroupCategory Security -GroupScope Global -DisplayName 'Leverings Afdeling' -Path "OU=Levering,DC=IT-Prods,DC=local"; # Makes a new Security Group with the name 'Levering' and adds it to the OU named Levering
+$SGParameter1 = @{
+    Name = "Supporter"
+    GroupCategory = Security
+    DisplayName = "Supporter Adfeling"
+    Path = "OU=Supporter,DC=IT-Prods,DC=local"
+}
+New-ADGroup @SG1; # Makes a new Security Group with the name 'Supportere' and adds it to the OU named Supporter
+$SGParameter2 = @{
+    Name = "Produktion"
+    GroupCategory = Security
+    GroupScope = Global
+    DisplayName = "Produktions Afdeling"
+    Path = "OU=Produktion,DC=IT-Prods,DC=local"
+}
+New-ADGroup  @SG2; # Makes a new Security Group with the name 'Produktion' and adds it to the OU named Produktion
+$SGParameter3 = @{
+    Name = "Levering"
+    GroupCategory = Security
+    GroupScope = Global
+    DisplayName = "Leverings Afdeling"
+    Path = "OU=Levering,DC=IT-Prods,DC=local"
+}
+New-ADGroup  @SG3; # Makes a new Security Group with the name 'Levering' and adds it to the OU named Levering
 
 
 #>
 <#
 mkdir 'C:\Share Folders'
 mkdir 'C:\Share Folders\Global'
-$GlobalParametre = @{
+$GlobalSMBParameter = @{
     Name = 'Global Drev'
     Path = 'C:\Share Folders\Global'
     FullAccess = 'Administrators'
     ChangeAccess = 'IT-Prods\Produktion', 'IT-Prods\Levering', 'IT-Prods\Supporter'
 }
-New-SmbShare @GlobalParametre
+New-SmbShare @GlobalSMBParameter
 #>
 
 mkdir 'C:\Share Folders\Produktion'
-$ProduktionsParametre = @{
+$SMBParameter1 = @{
     Name = 'Produktion'
     Path = 'C:\Share Folders\Produktion'
     FullAccess = 'Administrators'
     ChangeAccess = 'IT-Prods\Produktion' 
     ReadAccess = 'IT-Prods\Levering'
 }
-New-SmbShare @ProduktionsParametre
+New-SmbShare @SMBParameter1
 
 mkdir 'C:\Share Folders\Supportere'
-$SupporterParametre = @{
+$SMBParameter2 = @{
     Name = 'Supportere'
     Path = 'C:\Share Folders\Supportere'
     FullAccess = 'Administrators'
     ChangeAccess = 'IT-Prods\Supporter'
 }
-New-SmbShare @SupporterParametre
+New-SmbShare @SMBParameter2
 
 
 mkdir 'C:\Share Folders\Levering'
-$LeveringsParametre = @{
+$SMBParameter3 = @{
     Name = 'Levering'
     Path = 'C:\Share Folders\Levering'
     FullAccess = 'Administrators'
     ChangeAccess = 'IT-Prods\Levering'
 }
-New-SmbShare @LeveringsParametre
+New-SmbShare @SMBParameter3
 
 
 New-PSDrive -Name "G" -PSProvider "FileSystem" -Root "C:\Share Folders\Global" -Persist -Credential $Credential; # Creates a drivemap named 'share-folder' at the stated location that can be used by all
 
 
-New-PSDrive -Name "H" -PSProvider "FileSystem" -Root "C:\Share Folders\Levering" -Credential $Credential
+
+$DriveMap1 = @{
+    Name = "H"
+    PSProvider = "FileSystem"
+    Root = "C:\Share-Folders\Levering"
+    Credential = $Credential
+}
+
+New-PSDrive -Name "H" -PSProvider "FileSystem" -Root "C:\Share-Folders\Levering" -Credential $Credential
 $Acl = Get-Acl "H:"; # Gets the 'Levering' drive map ready to be configured
 $ArLevering = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Levering","ReadAndExecute","Allow");
 $ArLeveringWrite = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Levering","Write","Allow");
@@ -92,6 +130,9 @@ Set-Acl "C:\Share Folders\Levering" $Acl;
 New-ItemProperty -Path "HKCU:\Network" -Name "Levering" -Value "H:" -PropertyType String; # Automatically maps 'Levering' on startup
 
 
+$DriveMap2 = @{
+
+}
 
 New-PSDrive -Name "J" -PSProvider "FileSystem" -Root "C:\Share Folders\Supportere" -Credential $Credential
 $Acl = Get-Acl "J:"; # Gets the 'Supportere' drive map ready to be configured
@@ -103,6 +144,10 @@ Set-Acl "C:\Share Folders\Supportere" $Acl;
 New-ItemProperty -Path "HKCU:\Network" -Name "Supportere" -Value "J:" -PropertyType String; # Automatically maps 'Supportere' on startup
 
 
+
+$DriveMap3 = @{
+
+}
 
 New-PSDrive -Name "K" -PSProvider "FileSystem" -Root "C:\Share Folders\Produktion" -Credential $Credential
 $Acl = Get-Acl "K:"; # Gets the 'Produktion' drive map ready to be configured
