@@ -123,7 +123,7 @@ Set-Acl "C:\Share-Folders\Produktion" $Acl;
 New-ItemProperty -Path "HKCU:\Network" -Name "Produktion" -Value "K:" -PropertyType String; # Automatically maps 'Produktion' on startup
 
 #>
-<#
+
 # Store the data from NewUsersFinal.csv in the $ADUsers variable
 $ADUsers = Import-Csv E:\employee-automation.csv -Delimiter ";"
 
@@ -162,10 +162,10 @@ foreach ($User in $ADUsers) {
             -DisplayName "$lastname, $firstname" `
             -Path $OU `
             -EmailAddress $email `
-            -AccountPassword (ConvertTo-secureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False `
+            -AccountPassword (ConvertTo-secureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False
         Add-ADGroupMember `
-            -Identity $SG`
-            -Members $username`
+            -Identity $SG `
+            -Members $username 
             # If user is created, show message.
         Write-Host "The user account $username is created and added to its Security Group." -ForegroundColor Cyan
     }
