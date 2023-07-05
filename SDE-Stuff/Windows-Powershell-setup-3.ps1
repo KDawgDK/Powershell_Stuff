@@ -114,7 +114,7 @@ $DriveMapParameter1 = @{
     Credential = $Credential
 }
 
-New-PSDrive -Name "H" -PSProvider "FileSystem" -Root "C:\Share-Folders\IT-Prods-DCServ" -Credential $Credential
+New-PSDrive @DriveMapParameter1
 $Acl = Get-Acl "H:"; # Gets the 'Levering' drive map ready to be configured
 $ArLevering = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Levering","ReadAndExecute","Allow");
 $ArLeveringWrite = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Levering","Write","Allow");

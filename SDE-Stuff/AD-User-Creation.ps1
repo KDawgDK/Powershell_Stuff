@@ -15,7 +15,6 @@ foreach ($User in $ADUsers) {
     $password  = $User.password
     $firstname = $User.firstname
     $lastname  = $User.lastname
-    $initials  = $User.initials
     $OU        = $User.ou #This field refers to the OU the user account is to be created in
     $email     = $User.email
 
