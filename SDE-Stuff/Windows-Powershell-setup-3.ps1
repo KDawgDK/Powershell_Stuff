@@ -1,5 +1,6 @@
 #schtasks /delete /tn "Third-Powershell-Script" /f; # Deletes the task while also supressing the confirmation
-
+# Import active directory module for running AD cmdlets
+Import-Module ActiveDirectory
 netsh DHCP add SecurityGroups; # Adds 
 Restart-Service dhcpserver
 
@@ -173,10 +174,6 @@ New-ItemProperty -Path "HKCU:\Network" -Name "Produktion" -Value "K:" -PropertyT
 #>
 
 
-
-# Import active directory module for running AD cmdlets
-Import-Module ActiveDirectory
-  
 # Store the data from NewUsersFinal.csv in the $ADUsers variable
 $ADUsers = Import-Csv E:\employee-automation.csv -Delimiter ";"
 
