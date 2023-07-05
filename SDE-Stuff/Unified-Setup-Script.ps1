@@ -1,4 +1,4 @@
-Function AD-User-Creation {
+Function ADUserCreation {
 # Import active directory module for running AD cmdlets
 Import-Module ActiveDirectory
 # Store the data from NewUsersFinal.csv in the $ADUsers variable
