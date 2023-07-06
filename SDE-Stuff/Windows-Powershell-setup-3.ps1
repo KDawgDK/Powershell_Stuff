@@ -2,10 +2,7 @@
 # Import active directory module for running AD cmdlets
 Import-Module ActiveDirectory
 
-netsh DHCP add SecurityGroups; # Adds 
 Restart-Service dhcpserver
-
-
 
 Add-DhcpServerv4Scope -name "IT-Prods DHCP" -StartRange 192.168.20.1 -EndRange 192.168.20.254 -SubnetMask 255.255.255.0 -State Active
 
@@ -13,7 +10,6 @@ Add-DhcpServerv4ExclusionRange -ScopeID 192.168.20.0 -StartRange 192.168.20.1 -E
 Set-DhcpServerv4OptionValue -OptionID 3 -Value 192.168.20.1 -ScopeID 192.168.20.0 -ComputerName "IT-Prods-DCServ"
 Set-DhcpServerv4OptionValue -DnsDomain "it-prods.local" -DnsServer 192.168.20.6
 Add-DhcpServerInDC -DnsName IT-Prods-DCServ.IT-Prods.local -IPAddress 192.168.20.6; # Authorizes the DHCP server, you can view the available DHCP servers by using the 'Get-DhcpServerInDC' command
-
 
 
 $Credential = Get-Credential -Credential "it-prods\Administrator"
@@ -60,7 +56,7 @@ $SupporterParameter = @{
 }
 #>
 #New-SmbShare @SupporterParameter
-New-SmbShare -Name 'Supporter' -Path 'C:\Share-Folders\Supporter' -FullAccess 'Administrators' -ChangeAccess 'IT-Prods\Supporter'
+New-SmbShare -Name 'Supporter' -Path 'C:\Share-Folders\Supporter' -FullAccess 'Administrators', 'IT-Prods\Supporter'
 <#
 mkdir 'C:\Share-Folders\Levering'
 $SupporterParameter = @{
@@ -71,7 +67,7 @@ $SupporterParameter = @{
 }
 New-SmbShare @LeveringsParameter
 #>
-New-PSDrive -Name "G" -PSProvider "FileSystem" -Root "C:\Share-Folders\share-folder" -Credential $Credential; # Creates a drivemap named 'share-folder' at the stated location that can be used by all
+New-PSDrive -Name "G" -PSProvider "FileSystem" -Root "C:\Share-Folders\Global" -Credential $Credential; # Creates a drivemap named 'share-folder' at the stated location that can be used by all
 
 <#
 New-PSDrive -Name "H" -PSProvider "FileSystem" -Root "C:\Share-Folders\Levering" -Credential $Credential
@@ -148,23 +144,7 @@ foreach ($User in $ADUsers) {
     else {
 
         # User does not exist then proceed to create the new user account
-        # Account will be created in the OU provided by the $OU variable read from the CSV file
-        $NewUserParams = @{
-            SamAccountName = $username
-            UserPrincipalName= "$username@$UPN"
-            Name = "$firstname $lastname"
-            GivenName = $firstname
-            Surname = $lastname
-            Enabled = $True
-            DisplayName = "$lastname, $firstname"
-            Department  = $Department
-            Path = $OU
-            EmailAddress = $email
-            AccountPassword = (ConvertTo-secureString $password -AsPlainText -Force) 
-            ChangePasswordAtLogon = $False
-        }
-        New-ADUser @NewUserParams
-        <#
+        # Account will be created in the OU provided by the $OU variable read from the CSV file        
         New-ADUser `
             -SamAccountName $username `
             -UserPrincipalName "$username@$UPN" `
@@ -176,22 +156,15 @@ foreach ($User in $ADUsers) {
             -Department  $Department `
             -Path $OU `
             -EmailAddress $email `
-            -AccountPassword (ConvertTo-secureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False;
-        #>
-        $UserGroupParams = @{
-            Identity = $Department
-            Members = $username
-        }
-        Add-ADGroupMember @UserGroupParams
-        <#
+            -AccountPassword (ConvertTo-secureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False
+
+
         Add-ADGroupMember `
             -Identity $Department `
-            -Members $username;
+            -Members $username
             # If user is created, show message.
-        Write-Host "The user account $username is created and added to its Security Group." -ForegroundColor Cyan
-        #>
+        Write-Host "The user account $username has been created and added to the '$Department' security group." -ForegroundColor Cyan
     }
 }
 
-Read-Host -Prompt "Press Enter to exit"
-#>
+netsh DHCP add SecurityGroups
