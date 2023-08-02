@@ -9,4 +9,3 @@ Install-WindowsFeature DHCP -IncludeManagementTools; # Installs the DHCP windows
 Install-WindowsFeature AD-Domain-Services -IncludeManagementTools; # Installs the ADDS windows feature
 Install-WindowsFeature DNS -IncludeManagementTools 
 Restart-Computer
- hej med dig
