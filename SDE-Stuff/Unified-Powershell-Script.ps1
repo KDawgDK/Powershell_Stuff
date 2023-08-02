@@ -1,4 +1,4 @@
-Function ADUserCreation {
+Function adUserCreation {
     # Import active directory module for running AD cmdlets
     Import-Module ActiveDirectory
     # Store the data from NewUsersFinal.csv in the $ADUsers variable
@@ -46,7 +46,7 @@ Function ADUserCreation {
     
     Read-Host -Prompt "Press Enter to exit"
 }
-function networkRequirements {
+Function networkRequirements {
     $adapter = (Get-NetAdapter -Physical | Select-Object -First 1).ifIndex
     $dcServerIPAddress = Read-Host "What IP-Adress would you like to give your domain server?"
     $GatewayIPaddress = $dcServerIPAddress -replace "\.\d+$"
@@ -58,7 +58,7 @@ function networkRequirements {
     Install-WindowsFeature AD-Domain-Services -IncludeManagementTools; # Installs the ADDS windows feature
     Install-WindowsFeature DNS -IncludeManagementTools 
 } 
-function ComputerName {
+Function computerName {
     Rename-Computer -NewName "Test-DCServ" # Renames the server
     Restart-Computer # Restarts The Computer
 }
