@@ -67,11 +67,11 @@ $SupporterParameter = @{
 }
 New-SmbShare @LeveringsParameter
 #>
-New-PSDrive -Name "G" -PSProvider "FileSystem" -Root "C:\Share-Folders\Global" -Credential $Credential; # Creates a drivemap named 'share-folder' at the stated location that can be used by all
+New-PSDrive -Name "G" -PSProvider "FileSystem" -Persist -Root "\\IT-Prods-DCServ\Global" -Credential $Credential; # Creates a drivemap named 'share-folder' at the stated location that can be used by all
 
 <#
-New-PSDrive -Name "H" -PSProvider "FileSystem" -Root "C:\Share-Folders\Levering" -Credential $Credential
-$Acl = Get-Acl "H:"; # Gets the 'Levering' drive map ready to be configured
+New-PSDrive -Name "´L" -PSProvider "FileSystem" -Root "\\IT-Prods-DCServ\Levering" -Credential $Credential
+$Acl = Get-Acl "L"; # Gets the 'Levering' drive map ready to be configured
 $ArLevering = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Levering","ReadAndExecute","Allow");
 $ArLeveringWrite = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Levering","Write","Allow");
 $ArSupporter = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Supporter","ReadAndExecute","Allow");
@@ -87,8 +87,8 @@ New-ItemProperty -Path "HKCU:\Network" -Name "Levering" -Value "H:" -PropertyTyp
 #>
 
 
-New-PSDrive -Name "J" -PSProvider "FileSystem" -Root "C:\Share-Folders\Supporter" -Credential $Credential
-$Acl = Get-Acl "J:"; # Gets the 'Supportere' drive map ready to be configured
+New-PSDrive -Name "S" -PSProvider "FileSystem" -Persist -Root "\\IT-Prods-DCServ\Supporter" -Credential $Credential
+$Acl = Get-Acl "S"; # Gets the 'Supportere' drive map ready to be configured
 $ArSupporter = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Supporter","ReadAndExecute","Allow");
 $ArSupporterWrite = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Supporter","Write","Allow");
 $Acl.SetAccessRule($ArSupporter);
@@ -98,8 +98,8 @@ New-ItemProperty -Path "HKCU:\Network" -Name "Supporter" -Value "J:" -PropertyTy
 
 
 <#
-New-PSDrive -Name "K" -PSProvider "FileSystem" -Root "C:\Share-Folders\Produktion" -Credential $Credential
-$Acl = Get-Acl "K:"; # Gets the 'Produktion' drive map ready to be configured
+New-PSDrive -Name "P" -PSProvider "FileSystem" -Persist -Root "\\IT-Prods-DCServ\Produktion" -Credential $Credential
+$Acl = Get-Acl "P"; # Gets the 'Produktion' drive map ready to be configured
 $ArLevering = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Levering","ReadAndExecute","Allow");
 $ArLeveringWrite = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Levering","Write","Allow");
 $ArSupporter = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Supporter","ReadAndExecute","Allow");
