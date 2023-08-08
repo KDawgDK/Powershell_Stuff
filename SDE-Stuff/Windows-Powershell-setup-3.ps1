@@ -70,7 +70,7 @@ New-SmbShare @LeveringsParameter
 New-PSDrive -Name "G" -PSProvider "FileSystem" -Persist -Root "\\IT-Prods-DCServ\Global" -Credential $Credential; # Creates a drivemap named 'share-folder' at the stated location that can be used by all
 
 <#
-New-PSDrive -Name "´L" -PSProvider "FileSystem" -Root "\\IT-Prods-DCServ\Levering" -Credential $Credential
+New-PSDrive -Name "L" -Root "\\IT-Prods-DCServ\Levering" -Persist -PSProvider "FileSystem" -Credential $Credential
 $Acl = Get-Acl "L"; # Gets the 'Levering' drive map ready to be configured
 $ArLevering = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Levering","ReadAndExecute","Allow");
 $ArLeveringWrite = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Levering","Write","Allow");
@@ -87,7 +87,7 @@ New-ItemProperty -Path "HKCU:\Network" -Name "Levering" -Value "H:" -PropertyTyp
 #>
 
 
-New-PSDrive -Name "S" -PSProvider "FileSystem" -Persist -Root "\\IT-Prods-DCServ\Supporter" -Credential $Credential
+New-PSDrive -Name "S" -Root "\\IT-Prods-DCServ\Supporter" -Persist -PSProvider "FileSystem" -Credential $Credential
 $Acl = Get-Acl "S"; # Gets the 'Supportere' drive map ready to be configured
 $ArSupporter = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Supporter","ReadAndExecute","Allow");
 $ArSupporterWrite = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Supporter","Write","Allow");
@@ -98,7 +98,7 @@ New-ItemProperty -Path "HKCU:\Network" -Name "Supporter" -Value "J:" -PropertyTy
 
 
 <#
-New-PSDrive -Name "P" -PSProvider "FileSystem" -Persist -Root "\\IT-Prods-DCServ\Produktion" -Credential $Credential
+New-PSDrive -Name "P" -Root "\\IT-Prods-DCServ\Produktion" -Persist -PSProvider "FileSystem" -Credential $Credential
 $Acl = Get-Acl "P"; # Gets the 'Produktion' drive map ready to be configured
 $ArLevering = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Levering","ReadAndExecute","Allow");
 $ArLeveringWrite = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Levering","Write","Allow");
