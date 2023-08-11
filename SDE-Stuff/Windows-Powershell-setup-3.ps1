@@ -25,6 +25,22 @@ New-ADGroup -Name Produktion -GroupCategory Security -GroupScope Global -Display
 New-ADGroup -Name Levering -GroupCategory Security -GroupScope Global -DisplayName 'Leverings Afdeling' -Path "OU=Levering,DC=IT-Prods,DC=local"; # Makes a new Security Group with the name 'Levering' and adds it to the OU named Levering
 #>
 
+New-GPO -Name Supporter | 
+New-GPLink -Target "ou=support,dc=IT-Prods,dc=local" | 
+Set-GPPermissions -PermissionLevel gpoedit -TargetName "Supporter" -TargetType Group
+
+New-GPO -Name TestGPO | 
+New-GPLink -Target "ou=produktion,dc=IT-Prods,dc=local" | 
+Set-GPPermissions -PermissionLevel gpoedit -TargetName "Produktion" -TargetType Group
+
+New-GPO -Name TestGPO | 
+New-GPLink -Target "ou=levering,dc=IT-Prods,dc=local" |
+Set-GPPermissions -PermissionLevel gpoedit -TargetName "Levering" -TargetType Group
+
+new-gpo -name TestGPO | 
+new-gplink -target "ou=marketing,dc=contoso,dc=com" | 
+set-gppermissions -permissionlevel gpoedit -targetname "Marketing Admins" -targettype group
+
 mkdir 'C:\Share-Folders'
 mkdir 'C:\Share-Folders\Global'
 <#
