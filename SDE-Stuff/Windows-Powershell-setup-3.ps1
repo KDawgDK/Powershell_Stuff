@@ -8,8 +8,8 @@ Add-DhcpServerv4Scope -name "IT-Prods DHCP" -StartRange 192.168.20.1 -EndRange 1
 
 Add-DhcpServerv4ExclusionRange -ScopeID 192.168.20.0 -StartRange 192.168.20.1 -EndRange 192.168.20.20
 Set-DhcpServerv4OptionValue -OptionID 3 -Value 192.168.20.1 -ScopeID 192.168.20.0 -ComputerName "IT-Prods-DCServ"
-Set-DhcpServerv4OptionValue -DnsDomain "it-prods.local" -DnsServer 192.168.20.6
-Add-DhcpServerInDC -DnsName IT-Prods-DCServ.IT-Prods.local -IPAddress 192.168.20.6; # Authorizes the DHCP server, you can view the available DHCP servers by using the 'Get-DhcpServerInDC' command
+Set-DhcpServerv4OptionValue -DnsDomain "it-prods.local" -DnsServer 192.168.20.6 q
+Add-DhcpServerInDC -DnsName "IT-Prods-DCServ.IT-Prods.local" -IPAddress 192.168.20.6; # Authorizes the DHCP server, you can view the available DHCP servers by using the 'Get-DhcpServerInDC' command
 
 
 $Credential = Get-Credential -Credential "it-prods\Administrator"
@@ -24,25 +24,11 @@ New-ADGroup -Name Supporter -GroupCategory Security -GroupScope Global -DisplayN
 New-ADGroup -Name Produktion -GroupCategory Security -GroupScope Global -DisplayName 'Produktions Afdeling' -Path "OU=Produktion,DC=IT-Prods,DC=local"; # Makes a new Security Group with the name 'Produktion' and adds it to the OU named Produktion
 New-ADGroup -Name Levering -GroupCategory Security -GroupScope Global -DisplayName 'Leverings Afdeling' -Path "OU=Levering,DC=IT-Prods,DC=local"; # Makes a new Security Group with the name 'Levering' and adds it to the OU named Levering
 #>
-
-New-GPO -Name Supporter | 
-New-GPLink -Target "ou=support,dc=IT-Prods,dc=local" | 
-Set-GPPermissions -PermissionLevel gpoedit -TargetName "Supporter" -TargetType Group
-
-New-GPO -Name TestGPO | 
-New-GPLink -Target "ou=produktion,dc=IT-Prods,dc=local" | 
-Set-GPPermissions -PermissionLevel gpoedit -TargetName "Produktion" -TargetType Group
-
-New-GPO -Name TestGPO | 
-New-GPLink -Target "ou=levering,dc=IT-Prods,dc=local" |
-Set-GPPermissions -PermissionLevel gpoedit -TargetName "Levering" -TargetType Group
-
-new-gpo -name TestGPO | 
-new-gplink -target "ou=marketing,dc=contoso,dc=com" | 
-set-gppermissions -permissionlevel gpoedit -targetname "Marketing Admins" -targettype group
+<#
 
 mkdir 'C:\Share-Folders'
 mkdir 'C:\Share-Folders\Global'
+#>
 <#
 $GlobalParameter = @{
     Name = 'Global'
@@ -111,6 +97,24 @@ $Acl.SetAccessRule($ArSupporter);
 $Acl.SetAccessRule($ArSupporterWrite);
 Set-Acl "C:\Share-Folders\Supporter" $Acl;
 New-ItemProperty -Path "HKCU:\Network" -Name "Supporter" -Value "J:" -PropertyType String; # Automatically maps 'Supportere' on startup
+
+New-PSDrive -Name "L" -Root "\\IT-Prods-DCServ\Levering" -Persist -PSProvider "FileSystem"
+$Acl = Get-Acl "L:"; # Gets the 'Supportere' drive map ready to be configured
+$ArSupporter = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Levering","ReadAndExecute","Allow");
+$ArSupporterWrite = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Levering","Write","Allow");
+$Acl.SetAccessRule($ArSupporter);
+$Acl.SetAccessRule($ArSupporterWrite);
+Set-Acl "C:\Share-Folders\Supporter" $Acl;
+New-ItemProperty -Path "HKCU:\Network" -Name "Levering" -Value "J:" -PropertyType String; # Automatically maps 'Supportere' on startup
+
+New-PSDrive -Name "P" -Root "\\IT-Prods-DCServ\Produktion" -Persist -PSProvider "FileSystem"
+$Acl = Get-Acl "P:"; # Gets the 'Supportere' drive map ready to be configured
+$ArProduktion = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Produktion","ReadAndExecute","Allow");
+$ArProduktionWrite = New-Object System.Security.AccessControl.FileSystemAccessRule("IT-Prods.local\Produktion","Write","Allow");
+$Acl.SetAccessRule($ArProduktion);
+$Acl.SetAccessRule($ArProduktionWrite);
+Set-Acl "C:\Share-Folders\Supporter" $Acl;
+New-ItemProperty -Path "HKCU:\Network" -Name "Produktion" -Value "P:" -PropertyType String; # Automatically maps 'Supportere' on startup
 
 
 <#
