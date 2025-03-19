@@ -1,3 +1,2 @@
 # Powershell_Stuff
-Just a collection of Powershell Scripts  
-That includes stuff for both school stuff and video game stuff
+A rewrite of my windows server setup scripts that plans to combine them and make them more efficient
