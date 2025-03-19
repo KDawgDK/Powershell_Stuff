@@ -1,4 +1,4 @@
-#schtasks /delete /tn "Third-Powershell-Script" /f; # Deletes the task while also supressing the confirmation
+#schtasks /delete /tn "Third-Powershell-Script" /f; # Deletes the task while also surpressing the confirmation
 # Import active directory module for running AD cmdlets
 Import-Module ActiveDirectory
 
