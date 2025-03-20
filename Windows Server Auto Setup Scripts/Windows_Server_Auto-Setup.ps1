@@ -16,7 +16,9 @@
         $StartRangeIP = ""
         $EndRangeIP = ""
 
-## New scheduled task that will run the powershell script at logon (Might need to be at the end of all of the configuration, either manually put into the variables or while it is running)
+
+function ComputerSettings {
+    ## New scheduled task that will run the powershell script at logon (Might need to be at the end of all of the configuration, either manually put into the variables or while it is running)
     $actions = (New-ScheduledTaskAction -Execute 'Windows_Server_Auto-Setup.ps1')
     $trigger = New-ScheduledTaskTrigger -AtLogOn
     $principal = New-ScheduledTaskPrincipal -UserId "$DomainName\Administrator" -RunLevel Highest
@@ -24,8 +26,6 @@
     $task = New-ScheduledTask -Action $actions -Principal $principal -Trigger $trigger -Settings $settings
 
     Register-ScheduledTask 'Windows-Server-Setup' -InputObject $task
-
-function ComputerSettings {
     # Gateway
         $octets = $ComputerIP -split '\.' # Split the IP address into its octets
         $octets[3] = '1' # Set the last octet to 1 (192.168.20.*1* as an example)
@@ -69,6 +69,11 @@ function MakeOUs {
 
 function MakeOUFolders {
     #C:\OUFolders
+    mkdir 'C:\OUFolders'
+    $OUList = $OUs -split ',\s*'
+    foreach ($OU in $OUList) {
+        mkdir "C:\OUFolders\$OU"
+    }
 }
 
 function MakeADGroups {
@@ -76,6 +81,20 @@ function MakeADGroups {
     foreach ($OU in $FeatureList) {
         # Perform your desired action with each OU
         New-ADGroup -Name Supporter -GroupCategory Security -GroupScope Global -DisplayName "$OU Afdeling" -Path "OU=$OU,DC=$DomainName,DC=$DomainExtension"
+    }
+}
+
+function MakeGPOs {
+    $OUList = $OUs -split ',\s*'
+    foreach ($OU in $FeatureList) {
+    New-GPO $OU -Comment "This is a GPO for $OU"
+    }
+}
+
+function LinkGPOsToOUs {
+    $OUList = $OUs -split ',\s*'
+    foreach ($OU in $FeatureList) {
+    New-GPLink -Name $OU -Target "ou=$OU,dc=$DomainName,dc=$DomainExtension"
     }
 }
 
@@ -131,8 +150,8 @@ function MakeADUsers {
             Write-Host "The user account $username has been created and added to the '$Department' security group." -ForegroundColor Cyan
         }
     }
+    Unregister-ScheduledTask -TaskName 'Windows-Server-Setup'
 }
 
 
-# Add this to the last function = Unregister-ScheduledTask -TaskName 'Windows-Server-Setup'
 ## Actual Running of the configuration functions
