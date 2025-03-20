@@ -8,7 +8,8 @@
         # Windows Features
             $WindowsFeatures = 'AD-Domain-Services, DNS'
     # AD Configurations if you do use it
-        $DomainName = "it-prods.local"
+        $DomainName = "it-prods"
+        $DomainExtension = "local"
         $OUs = "Supportere, Produktion, Levering" # Separate the OUs with ','
     # DHCP Scope configurations
         $ScopeName = ""
@@ -46,7 +47,7 @@ function ComputerSettings {
 }
 
 function ForestSetup {
-    Install-ADDSForest -DomainName "$DomainName" -InstallDNS;
+    Install-ADDSForest -DomainName "$DomainName.$DomainExtension" -InstallDNS;
     Restart-Computer
 }
 
@@ -63,15 +64,61 @@ function DHCPSetup {
 }
 
 function MakeADGroups {
-
+    $OUList = $OUs -split ',\s*'
+    foreach ($OU in $FeatureList) {
+        # Perform your desired action with each OU
+        New-ADGroup -Name Supporter -GroupCategory Security -GroupScope Global -DisplayName "$OU Afdeling" -Path "OU=$OU,DC=$DomainName,DC=$DomainExtension"
+    }
 }
 
 function MakeADUsers {
 
+    $ADUsers = Import-Csv E:\employee-automation.csv -Delimiter ";"
 
-
-
-    $ADGroups
+    # Define UPN
+    $UPN = "$DomainName.$DomainExtension"
+    
+    # Loop through each row containing user details in the CSV file
+    foreach ($User in $ADUsers) {
+    
+        #Read user data from each field in each row and assign the data to a variable as below
+        $username   = $User.username
+        $password   = $User.password
+        $firstname  = $User.firstname
+        $lastname   = $User.lastname
+        $OU         = $User.ou #This field refers to the OU the user account is to be created in
+        $email      = $User.email
+        $Department = $User.group
+    
+    
+        # Check to see if the user already exists in AD
+        if (Get-ADUser -F { SamAccountName -eq $username }) {
+            # If user does exist, give a warning
+            Write-Warning "A user account with username $username already exists in Active Directory."
+        }
+        else {
+    
+            # User does not exist then proceed to create the new user account
+            # Account will be created in the OU provided by the $OU variable read from the CSV file        
+            New-ADUser `
+                -SamAccountName $username `
+                -UserPrincipalName "$username@$UPN" `
+                -Name "$firstname $lastname" `
+                -GivenName $firstname `
+                -Surname $lastname `
+                -Enabled $True `
+                -DisplayName "$lastname, $firstname" `
+                -Department  $Department `
+                -Path $OU `
+                -EmailAddress $email `
+                -AccountPassword (ConvertTo-secureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False
+            Add-ADGroupMember `
+                -Identity $Department `
+                -Members $username
+                # If user is created, show message.
+            Write-Host "The user account $username has been created and added to the '$Department' security group." -ForegroundColor Cyan
+        }
+    }
 }
 
 
