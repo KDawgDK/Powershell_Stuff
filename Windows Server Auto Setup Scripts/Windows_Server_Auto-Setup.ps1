@@ -63,12 +63,24 @@ function DHCPSetup {
     Add-DhcpServerInDC -DnsName "$ComputerName.$DomainName" -IPAddress $ComputerIP 
 }
 
+function MakeOUs {
+
+}
+
+function MakeOUFolders {
+    #C:\OUFolders
+}
+
 function MakeADGroups {
     $OUList = $OUs -split ',\s*'
     foreach ($OU in $FeatureList) {
         # Perform your desired action with each OU
         New-ADGroup -Name Supporter -GroupCategory Security -GroupScope Global -DisplayName "$OU Afdeling" -Path "OU=$OU,DC=$DomainName,DC=$DomainExtension"
     }
+}
+
+function MakeDriveMaps {
+
 }
 
 function MakeADUsers {
