@@ -6,17 +6,21 @@
         $ComputerIP = "192.168.20.6"
         $Prefix = "24"
         # Windows Features
-            $WindowsFeatures = 'AD-Domain-Services, DNS'
+            $WindowsFeatures = 'AD-Domain-Services, DNS' # Separate the Features with ','
     # AD Configurations if you do use it
         $DomainName = "it-prods"
         $DomainExtension = "local"
         $OUs = "Supportere, Produktion, Levering" # Separate the OUs with ','
+        # Drive Maps Configuration
+            $DrivePermissions = "" # Separate the permissions with ','
+            $DriveLetters = "" # Separate the Letters 
+
     # DHCP Scope configurations
         $ScopeName = ""
         $StartRangeIP = ""
         $EndRangeIP = ""
 
-
+## Functions for the different things
 function ComputerSettings {
     ## New scheduled task that will run the powershell script at logon (Might need to be at the end of all of the configuration, either manually put into the variables or while it is running)
     $actions = (New-ScheduledTaskAction -Execute 'Windows_Server_Auto-Setup.ps1')
@@ -55,20 +59,22 @@ function DHCPSetup {
     # Scope ID
         $octets = $ComputerIP -split '\.' # Split the IP address into its octets
         $octets[3] = '0' # Set the last octet to 1 (192.168.20.*0* as an example)
-        $GatewayIP = $octets -join '.' # Reassemble the modified IP address
+        $ScopeID = $octets -join '.' # Reassemble the modified IP address
     Restart-Service dhcpserver
     Add-DhcpServerv4Scope -name $ScopeName -StartRange $StartRangeIP -EndRange $EndRangeIP
-    Set-DhcpServerv4OptionValue -Value 192.168.20.1 -ScopeID 192.168.20.0
-    Set-DhcpServerv4OptionValue -DnsDomain "it-prods.local" -DnsServer $ComputerIP q
+    Set-DhcpServerv4OptionValue -Value $GatewayIP -ScopeID $ScopeID
+    Set-DhcpServerv4OptionValue -DnsDomain "$DomainName.$DomainExtension" -DnsServer $ComputerIP q
     Add-DhcpServerInDC -DnsName "$ComputerName.$DomainName" -IPAddress $ComputerIP 
 }
 
 function MakeOUs {
-
+    $OUList = $OUs -split ',\s*'
+    foreach ($OU in $OUList) {
+        New-ADOrganizationalUnit -Name $OU
+    }
 }
 
 function MakeOUFolders {
-    #C:\OUFolders
     mkdir 'C:\OUFolders'
     $OUList = $OUs -split ',\s*'
     foreach ($OU in $OUList) {
@@ -86,7 +92,7 @@ function MakeADGroups {
 
 function MakeGPOs {
     $OUList = $OUs -split ',\s*'
-    foreach ($OU in $FeatureList) {
+    foreach ($OU in $OUList) {
     New-GPO $OU -Comment "This is a GPO for $OU"
     }
 }
@@ -99,15 +105,19 @@ function LinkGPOsToOUs {
 }
 
 function MakeDriveMaps {
+    $OUList = $OUs -split ',\s*'
+    foreach ($OU in $OUList) {
+    New-PSDrive -Name $DriveLetter -Root "\\$ComputerName\$OU" -Persist "FileSystem"
+    
 
+    }
 }
 
 function MakeADUsers {
 
     $ADUsers = Import-Csv E:\employee-automation.csv -Delimiter ";"
-
     # Define UPN
-    $UPN = "$DomainName.$DomainExtension"
+    $Domain = "$DomainName.$DomainExtension"
     
     # Loop through each row containing user details in the CSV file
     foreach ($User in $ADUsers) {
@@ -133,7 +143,7 @@ function MakeADUsers {
             # Account will be created in the OU provided by the $OU variable read from the CSV file        
             New-ADUser `
                 -SamAccountName $username `
-                -UserPrincipalName "$username@$UPN" `
+                -UserPrincipalName "$username@$Domain" `
                 -Name "$firstname $lastname" `
                 -GivenName $firstname `
                 -Surname $lastname `
