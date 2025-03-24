@@ -13,8 +13,7 @@
         $OUs = "Supportere, Produktion, Levering" # Separate the OUs with ','
         # Drive Maps Configuration
             $DrivePermissions = "" # Separate the permissions with ','
-            $DriveLetters = "" # Separate the Letters 
-
+            $DriveLetters = "" # Separate the Letters
     # DHCP Scope configurations
         $ScopeName = ""
         $StartRangeIP = ""
@@ -28,7 +27,6 @@ function ComputerSettings {
     $principal = New-ScheduledTaskPrincipal -UserId "$DomainName\Administrator" -RunLevel Highest
     $settings = New-ScheduledTaskSettingsSet -RunOnlyIfNetworkAvailable -WakeToRun
     $task = New-ScheduledTask -Action $actions -Principal $principal -Trigger $trigger -Settings $settings
-
     Register-ScheduledTask 'Windows-Server-Setup' -InputObject $task
     # Gateway
         $octets = $ComputerIP -split '\.' # Split the IP address into its octets
@@ -46,7 +44,6 @@ function ComputerSettings {
         # Perform your desired action with each feature
         Install-WindowsFeature -Name $Feature -IncludeManagementTools
     }
-
     Restart-Computer
 }
 
@@ -84,7 +81,7 @@ function MakeOUFolders {
 
 function MakeADGroups {
     $OUList = $OUs -split ',\s*'
-    foreach ($OU in $FeatureList) {
+    foreach ($OU in $OUList) {
         # Perform your desired action with each OU
         New-ADGroup -Name Supporter -GroupCategory Security -GroupScope Global -DisplayName "$OU Afdeling" -Path "OU=$OU,DC=$DomainName,DC=$DomainExtension"
     }
@@ -107,21 +104,17 @@ function LinkGPOsToOUs {
 function MakeDriveMaps {
     $OUList = $OUs -split ',\s*'
     foreach ($OU in $OUList) {
-    New-PSDrive -Name $DriveLetter -Root "\\$ComputerName\$OU" -Persist "FileSystem"
+        New-PSDrive -Name $DriveLetter -Root "\\$ComputerName\$OU" -Persist "FileSystem"
     
-
-    }
+}
 }
 
 function MakeADUsers {
-
     $ADUsers = Import-Csv E:\employee-automation.csv -Delimiter ";"
     # Define UPN
     $Domain = "$DomainName.$DomainExtension"
-    
     # Loop through each row containing user details in the CSV file
     foreach ($User in $ADUsers) {
-    
         #Read user data from each field in each row and assign the data to a variable as below
         $username   = $User.username
         $password   = $User.password
@@ -130,9 +123,7 @@ function MakeADUsers {
         $OU         = $User.ou #This field refers to the OU the user account is to be created in
         $email      = $User.email
         $Department = $User.group
-    
-    
-        # Check to see if the user already exists in AD
+        # Checks if the user already exists in the Active Directory
         if (Get-ADUser -F { SamAccountName -eq $username }) {
             # If user does exist, give a warning
             Write-Warning "A user account with username $username already exists in Active Directory."
