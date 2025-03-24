@@ -13,11 +13,17 @@
         $OUs = "Supportere, Produktion, Levering" # Separate the OUs with ','
         # Drive Maps Configuration
             $DrivePermissions = "" # Separate the permissions with ','
-            $DriveLetters = "" # Separate the Letters
+            $DriveLetters = "S, P, L" # Separate the Letters
     # DHCP Scope configurations
         $ScopeName = ""
         $StartRangeIP = ""
         $EndRangeIP = ""
+
+# Check if they are blank or have information, and if they don't go through manual configuration that will be saved to a config on C:\ServerConfig.txt
+function BlankOrNotConfig {
+
+}
+
 
 ## Functions for the different things
 function ComputerSettings {
@@ -103,10 +109,29 @@ function LinkGPOsToOUs {
 
 function MakeDriveMaps {
     $OUList = $OUs -split ',\s*'
-    foreach ($OU in $OUList) {
-        New-PSDrive -Name $DriveLetter -Root "\\$ComputerName\$OU" -Persist "FileSystem"
-    
-}
+    $DriveLettersList = $DriveLetters -split ',\s*'
+    $DrivePermissionsList = $DrivePermissions -split ',\s*'
+
+    # Ensure all lists have the same count
+    $count = [math]::Min($OUList.Count, $DriveLettersList.Count, $DrivePermissionsList.Count)
+
+    for ($i = 0; $i -lt $count; $i++) {
+        $OU = $OUList[$i]
+        $DriveLetter = $DriveLettersList[$i]
+        $PermissionGroup = $DrivePermissionsList[$i]
+
+        # Create the drive mapping
+        New-PSDrive -Name $DriveLetter -Root "\\$ComputerName\$OU" -Persist -PSProvider FileSystem
+
+        # Set NTFS Permissions
+        $acl = Get-Acl -Path "\\$ComputerName\$OU"
+        $accessRule = New-Object System.Security.AccessControl.FileSystemAccessRule($PermissionGroup, "FullControl", "ContainerInherit,ObjectInherit", "None", "Allow")
+        $acl.SetAccessRule($accessRule)
+        Set-Acl -Path "\\$ComputerName\$OU" -AclObject $acl
+
+        # Set Share Permissions
+        Grant-SmbShareAccess -Name $OU -AccountName $PermissionGroup -AccessRight Full -Force
+    }
 }
 
 function MakeADUsers {
