@@ -14,6 +14,7 @@
         # Drive Maps Configuration
             $DrivePermissions = "" # Separate the permissions with ','
             $DriveLetters = "S, P, L" # Separate the Letters
+            $AccessTo = ""
     # DHCP Scope configurations
         $ScopeName = ""
         $StartRangeIP = ""
