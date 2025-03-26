@@ -11,7 +11,7 @@
         $DomainName = "it-prods"
         $DomainExtension = "local"
         $OUs = "Supportere, Produktion, Levering" # Separate the OUs with ','
-        $ManualUserCreate = "N" # Either 'Y'es or 'N'o to manually creating them
+        $ManualUserCreate = "N" # Either 'Y'es or 'N'o to manually create users
         # Drive Maps Configuration
             $DrivePermissions = "" # Separate the permissions with ','
             $DriveLetters = "S, P, L" # Separate the Letters
@@ -180,48 +180,82 @@ function MakeDriveMaps {
 }
 
 function MakeADUsers {
-    $ADUsers = Import-Csv E:\employee-automation.csv -Delimiter ";"
-    # Define UPN
     $Domain = "$DomainName.$DomainExtension"
-    # Loop through each row containing user details in the CSV file
-    foreach ($User in $ADUsers) {
-        #Read user data from each field in each row and assign the data to a variable as below
-        $username   = $User.username
-        $password   = $User.password
-        $firstname  = $User.firstname
-        $lastname   = $User.lastname
-        $OU         = $User.ou #This field refers to the OU the user account is to be created in
-        $email      = $User.email
-        $Department = $User.group
-        # Checks if the user already exists in the Active Directory
-        if (Get-ADUser -F { SamAccountName -eq $username }) {
-            # If user does exist, give a warning
-            Write-Warning "A user account with username $username already exists in Active Directory."
-        }
-        else {
-    
-            # User does not exist then proceed to create the new user account
-            # Account will be created in the OU provided by the $OU variable read from the CSV file        
-            New-ADUser `
+    if ($ManualUserCreate -eq "Y") { # Manual User Creation
+        $WantedUsers = Read-Host "How many users do you want to make?"
+        for ($i=1; $i -le $WantedUsers; $i++) { # Goes up by one after earch user untill the imputted value entered before
+            $SAM_Name = Read-Host "What will your username be?"
+            if (Get-ADUser -F { SamAccountName -eq $SAM_Name }) { # If user exist, It'll give a warning
+                Write-Warning "A user account with username $SAM_Name already exists in Active Directory."
+            }
+            else { # User does not exist and can be created
+                $department = Read-Host "What department will they be in?"
+                $firstname = Read-Host "What is your first name?"
+                $lastname = Read-Host "What is your last name?"
+                $password = Read-Host "What will your password be?"
+                $email = Read-Host "What is their email?"
+                
+                New-ADUser `
                 -SamAccountName $username `
-                -UserPrincipalName "$username@$Domain" `
+                -UserPrincipalName "$username@$UPN" `
                 -Name "$firstname $lastname" `
                 -GivenName $firstname `
                 -Surname $lastname `
                 -Enabled $True `
                 -DisplayName "$lastname, $firstname" `
-                -Department  $Department `
+                -Department  $department `
                 -Path $OU `
                 -EmailAddress $email `
                 -AccountPassword (ConvertTo-secureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False
-            Add-ADGroupMember `
+                
+                Add-ADGroupMember `
                 -Identity $Department `
                 -Members $username
                 # If user is created, show message.
             Write-Host "The user account $username has been created and added to the '$Department' security group." -ForegroundColor Cyan
+            }
+    } else { # Automatic CSV User Creation
+    $ADUsers = Import-Csv E:\employee-automation.csv -Delimiter ";"
+
+        foreach ($User in $ADUsers) {    # Loop through each row containing user details in the CSV file
+            #Read user data from each field in each row and assign the data to a variable as below
+            $username   = $User.username
+            $password   = $User.password
+            $firstname  = $User.firstname
+            $lastname   = $User.lastname
+            $OU         = $User.ou #This field refers to the OU the user account is to be created in
+            $email      = $User.email
+            $Department = $User.group
+            # Checks if the user already exists in the Active Directory
+            if (Get-ADUser -F { SamAccountName -eq $username }) {
+                # If user does exist, give a warning
+                Write-Warning "A user account with username $username already exists in Active Directory."
+            }
+            else {
+                # User does not exist then proceed to create the new user account
+                # Account will be created in the OU provided by the $OU variable read from the CSV file        
+                New-ADUser `
+                    -SamAccountName $username `
+                    -UserPrincipalName "$username@$Domain" `
+                    -Name "$firstname $lastname" `
+                    -GivenName $firstname `
+                    -Surname $lastname `
+                    -Enabled $True `
+                    -DisplayName "$lastname, $firstname" `
+                    -Department  $Department `
+                    -Path $OU `
+                    -EmailAddress $email `
+                    -AccountPassword (ConvertTo-secureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False
+                Add-ADGroupMember `
+                    -Identity $Department `
+                    -Members $username
+                    # If user is created, show message.
+                Write-Host "The user account $username has been created and added to the '$Department' security group." -ForegroundColor Cyan
+            }
         }
     }
     Unregister-ScheduledTask -TaskName 'Windows-Server-Setup'
+    }
 }
 
 
