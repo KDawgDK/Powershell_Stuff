@@ -4,13 +4,14 @@
         $adapter = (Get-NetAdapter -Physical | Select-Object -First 1).ifIndex
         $ComputerName = "DCServ"
         $ComputerIP = "192.168.20.6"
-        $Prefix = "24"
+        $Prefix = "24" # Change this to whatever you wish it to be
         # Windows Features
-            $WindowsFeatures = 'AD-Domain-Services, DNS' # Separate the Features with ','
+            $WindowsFeatures = 'AD-Domain-Services, DNS, DHCP' # Separate the Features with ','
     # AD Configurations if you do use it
         $DomainName = "it-prods"
         $DomainExtension = "local"
         $OUs = "Supportere, Produktion, Levering" # Separate the OUs with ','
+        $ManualUserCreate = "N" # Either 'Y'es or 'N'o to manually creating them
         # Drive Maps Configuration
             $DrivePermissions = "" # Separate the permissions with ','
             $DriveLetters = "S, P, L" # Separate the Letters
@@ -20,21 +21,61 @@
         $StartRangeIP = ""
         $EndRangeIP = ""
 
-# Check if they are blank or have information, and if they don't go through manual configuration that will be saved to a config on C:\ServerConfig.txt
-function BlankOrNotConfig {
-
+## Functions for the different things
+function BlankOrNotConfig { # Check if the variables are blank or have information, and if they don't, you go through manual configuration that will be saved to a config on C:\ServerConfig.txt
+    New-Item -ItemType File -Name "ServerConfig.txt" -Path "C:"
+    if ($ComputerName -eq "") { # Asks the user for a computer name
+        $ComputerName = Read-Host = "What do you want to call your server"
+        Add-Content -Path "C:\ServerConfig.txt" -Value "Computer Name = $ComputerName"
+    }
+    if ($ComputerIP -eq "") { # Asks the user for a IPv4 Address
+        $ComputerIP = Read-Host = "What IPv4 Address do you want your server to have?"
+        Add-Content -Path "C:\ServerConfig.txt" -Value "Computer IP = $ComputerIP"
+    }
+    if ($Prefix -eq "") { # Asks the user for a subnet prefix
+        $Prefix = Read-Host = "What do you want the subnet prefix to be?"
+        Add-Content -Path "C:\ServerConfig.txt" -Value "IP Prefix = $Prefix"
+    }
+    if ($WindowsFeatures -like "*AD-Domain-Services*") { # Make it check if AD-Domain Services is included in $WindowsFeatures and then follow with the 2 other if statements
+        if (($DomainName -and $DomainExtension) -eq "") { # Asks the user for a full domain name
+            $FullDomain = Read-Host "What domain do you want to have? example: 'name.extension' where 'extension' can be like 'com' or 'local'"
+            $Domain = $FullDomain-split '.\s*'
+            $DomainName = $Domain[1]
+            $DomainExtension = $Domain[2]
+            Add-Content -Path "C:\ServerConfig.txt" -Value "Domain Name = $DomainName"
+            Add-Content -Path "C:\ServerConfig.txt" -Value "Domain Extension $DomainExtension"
+        }
+        if ($OUs -eq "") { # Asks the user for Operational Units
+            $OUs = Read-Host "What Operational Units do you have or want to have? note separate them with commas ',' "
+            Add-Content -Path "C:\ServerConfig.txt" -Value "OUs = $OUs"
+        }
+    }
+    if ($WindowsFeatures -like "*DHCP*") { # Checks if the WindowsFeatures variable includes DHCP to configure DHCP stuff
+        if ($ScopeName -eq "") { # Manually name the scope if the variable is blank
+            $ScopeName = Read-Host "What do you want the scope name to be? default will be {DomainName}-DHCP_Scope"
+            if ($ScopeName -ne "") { # Adds the scope name config to the ServerConfig.txt file if the user enteret in anything
+                Add-Content -Path "C:\ServerConfig.txt" -Value "Scope Name = $ScopeName"
+            }
+        }
+        if ($StartRangeIP -eq "") { # Manually input the start range if the variable is blank
+            $StartRangeIP = Read-Host "Where should the start of the range be?"
+            Add-Content -Path "C:\ServerConfig.txt" -Value "Start Range = $StartRangeIP"
+        }
+        if ($EndRangeIP -eq "") { # Manually input the end range if the variable is blank
+            $EndRangeIP = Read-Host "Where should the end of the range be?"
+            Add-Content -Path "C:\ServerConfig.txt" -Value "End Range = $EndRangeIP"
+        }
+    }
 }
 
-
-## Functions for the different things
 function ComputerSettings {
-    ## New scheduled task that will run the powershell script at logon (Might need to be at the end of all of the configuration, either manually put into the variables or while it is running)
-    $actions = (New-ScheduledTaskAction -Execute 'Windows_Server_Auto-Setup.ps1')
-    $trigger = New-ScheduledTaskTrigger -AtLogOn
-    $principal = New-ScheduledTaskPrincipal -UserId "$DomainName\Administrator" -RunLevel Highest
-    $settings = New-ScheduledTaskSettingsSet -RunOnlyIfNetworkAvailable -WakeToRun
-    $task = New-ScheduledTask -Action $actions -Principal $principal -Trigger $trigger -Settings $settings
-    Register-ScheduledTask 'Windows-Server-Setup' -InputObject $task
+    ## New scheduled task that will run the powershell script at logon
+        $actions = (New-ScheduledTaskAction -Execute 'Windows_Server_Auto-Setup.ps1')
+        $trigger = New-ScheduledTaskTrigger -AtLogOn
+        $principal = New-ScheduledTaskPrincipal -UserId "$DomainName\Administrator" -RunLevel Highest
+        $settings = New-ScheduledTaskSettingsSet -RunOnlyIfNetworkAvailable -WakeToRun
+        $task = New-ScheduledTask -Action $actions -Principal $principal -Trigger $trigger -Settings $settings
+        Register-ScheduledTask 'Windows-Server-Setup' -InputObject $task
     # Gateway
         $octets = $ComputerIP -split '\.' # Split the IP address into its octets
         $octets[3] = '1' # Set the last octet to 1 (192.168.20.*1* as an example)
@@ -42,7 +83,7 @@ function ComputerSettings {
     # Setup network interface
         New-NetIPAddress -IPAddress $ComputerIP -InterfaceIndex $adapter -DefaultGateway $GatewayIP -AddressFamily IPv4 -PrefixLength $Prefix;
         Set-DnsClientServerAddress -InterfaceIndex $adapter -ServerAddresses $ComputerIP
-    Rename-Computer -NewName $ComputerName
+    Rename-Computer -NewName $ComputerName # Renames the "computer" with the name specified in the variable or that you manually input at the start
     # Define the comma-separated list of Windows features
     # Split the string into an array, trimming any leading or trailing whitespace from each feature
     $FeatureList = $WindowsFeatures -split ',\s*'
@@ -60,9 +101,12 @@ function ForestSetup {
 }
 
 function DHCPSetup {
+    if ($ScopeName -eq "") {
+        $ScopeName = "$DomainName-DHCP_Scope"
+    }
     # Scope ID
         $octets = $ComputerIP -split '\.' # Split the IP address into its octets
-        $octets[3] = '0' # Set the last octet to 1 (192.168.20.*0* as an example)
+        $octets[3] = '0' # Set the last octet to 0 (192.168.20.*0* as an example)
         $ScopeID = $octets -join '.' # Reassemble the modified IP address
     Restart-Service dhcpserver
     Add-DhcpServerv4Scope -name $ScopeName -StartRange $StartRangeIP -EndRange $EndRangeIP
