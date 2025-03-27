@@ -13,9 +13,9 @@
         $OUs = "Supportere, Produktion, Levering" # Separate the OUs with ','
         $ManualUserCreate = "N" # Either 'Y'es or 'N'o to manually create users
         # Drive Maps Configuration
-            $DrivePermissions = "" # Separate the permissions with ','
+            $DrivePermissions = "FullControl, Modify, " # Separate the permissions with ','
             $DriveLetters = "S, P, L" # Separate the Letters
-            $AccessTo = ""
+            # $AccessTo = ""
     # DHCP Scope configurations
         $ScopeName = ""
         $StartRangeIP = ""
@@ -66,6 +66,7 @@ function BlankOrNotConfig { # Check if the variables are blank or have informati
             Add-Content -Path "C:\ServerConfig.txt" -Value "End Range = $EndRangeIP"
         }
     }
+    Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 2
 }
 
 function ComputerSettings {
@@ -92,13 +93,13 @@ function ComputerSettings {
         # Perform your desired action with each feature
         Install-WindowsFeature -Name $Feature -IncludeManagementTools
     }
-    Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 2
+    Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 3
     Restart-Computer
 }
 
 function ForestSetup {
     Install-ADDSForest -DomainName "$DomainName.$DomainExtension" -InstallDNS;
-    Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 3
+    Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 4
     Restart-Computer
 }
 
@@ -151,7 +152,7 @@ function MakeGPOs {
 
 function LinkGPOsToOUs {
     $OUList = $OUs -split ',\s*'
-    foreach ($OU in $FeatureList) {
+    foreach ($OU in $OUList) {
     New-GPLink -Name $OU -Target "ou=$OU,dc=$DomainName,dc=$DomainExtension"
     }
 }
@@ -174,7 +175,7 @@ function MakeDriveMaps {
 
         # Set NTFS Permissions
         $acl = Get-Acl -Path "\\$ComputerName\$OU"
-        $accessRule = New-Object System.Security.AccessControl.FileSystemAccessRule($PermissionGroup, "FullControl", "ContainerInherit,ObjectInherit", "None", "Allow")
+        $accessRule = New-Object System.Security.AccessControl.FileSystemAccessRule($OU, $PermissionGroup, "ContainerInherit,ObjectInherit", "None", "Allow")
         $acl.SetAccessRule($accessRule)
         Set-Acl -Path "\\$ComputerName\$OU" -AclObject $acl
 
@@ -262,16 +263,26 @@ function MakeADUsers {
     Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 0
     }
 }
-
-## Actual Running of the configuration functions
 New-Item -Path "HKLM:\SYSTEM" -Name "ServerScript"
 New-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 1
+
+## Actual Running of the configuration functions
+
 $Progress = Get-ItemPropertyValue 'HKLM:\ServerScript' -Name "Progress"
 
-switch ($Process) { # Looks for the value and runs the result in the switch statement
+switch ($Progress) { # Looks for the value and runs the result in the switch statement
     0 { Menu }
-    1 { ComputerSettings }
-    2 { ForestSetup }
+    1 { BlankOrNotConfig }
+    2 { ComputerSettings }
+    3 { ForestSetup }
+    4 { DHCPSetup;
+        MakeOUs;
+        MakeOUFolders;
+        MakeADGroups;
+        MakeGPOs;
+        LinkGPOsToOUs;
+        MakeDriveMaps;
+        MakeADUsers; }
 }
 
 DHCPSetup
