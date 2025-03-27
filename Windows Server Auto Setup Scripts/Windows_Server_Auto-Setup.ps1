@@ -103,18 +103,20 @@ function ForestSetup {
 }
 
 function DHCPSetup {
-    if ($ScopeName -eq "") {
-        $ScopeName = "$DomainName-DHCP_Scope"
+    if ($WindowsFeatures -like "*AD-Domain-Services*") {
+        if ($ScopeName -eq "") {
+            $ScopeName = "$DomainName-DHCP_Scope"
+        }
+        # Scope ID
+            $octets = $ComputerIP -split '\.' # Split the IP address into its octets
+            $octets[3] = '0' # Set the last octet to 0 (192.168.20.*0* as an example)
+            $ScopeID = $octets -join '.' # Reassemble the modified IP address
+        Restart-Service dhcpserver
+        Add-DhcpServerv4Scope -name $ScopeName -StartRange $StartRangeIP -EndRange $EndRangeIP
+        Set-DhcpServerv4OptionValue -Value $GatewayIP -ScopeID $ScopeID
+        Set-DhcpServerv4OptionValue -DnsDomain "$DomainName.$DomainExtension" -DnsServer $ComputerIP q
+        Add-DhcpServerInDC -DnsName "$ComputerName.$DomainName" -IPAddress $ComputerIP 
     }
-    # Scope ID
-        $octets = $ComputerIP -split '\.' # Split the IP address into its octets
-        $octets[3] = '0' # Set the last octet to 0 (192.168.20.*0* as an example)
-        $ScopeID = $octets -join '.' # Reassemble the modified IP address
-    Restart-Service dhcpserver
-    Add-DhcpServerv4Scope -name $ScopeName -StartRange $StartRangeIP -EndRange $EndRangeIP
-    Set-DhcpServerv4OptionValue -Value $GatewayIP -ScopeID $ScopeID
-    Set-DhcpServerv4OptionValue -DnsDomain "$DomainName.$DomainExtension" -DnsServer $ComputerIP q
-    Add-DhcpServerInDC -DnsName "$ComputerName.$DomainName" -IPAddress $ComputerIP 
 }
 
 function MakeOUs {
@@ -266,9 +268,18 @@ New-Item -Path "HKLM:\SYSTEM" -Name "ServerScript"
 New-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 1
 $Progress = Get-ItemPropertyValue 'HKLM:\ServerScript' -Name "Progress"
 
-switch ($Process) {
+switch ($Process) { # Looks for the value and runs the result in the switch statement
     0 { Menu }
     1 { ComputerSettings }
     2 { ForestSetup }
-    default {}
 }
+
+DHCPSetup
+
+MakeOUs
+MakeOUFolders
+MakeADGroups
+MakeGPOs
+LinkGPOsToOUs
+MakeDriveMaps
+MakeADUsers
