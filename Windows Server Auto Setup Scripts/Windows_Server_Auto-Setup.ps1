@@ -92,11 +92,13 @@ function ComputerSettings {
         # Perform your desired action with each feature
         Install-WindowsFeature -Name $Feature -IncludeManagementTools
     }
+    Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 2
     Restart-Computer
 }
 
 function ForestSetup {
     Install-ADDSForest -DomainName "$DomainName.$DomainExtension" -InstallDNS;
+    Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 3
     Restart-Computer
 }
 
@@ -255,8 +257,18 @@ function MakeADUsers {
         }
     }
     Unregister-ScheduledTask -TaskName 'Windows-Server-Setup'
+    Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 0
     }
 }
 
-
 ## Actual Running of the configuration functions
+New-Item -Path "HKLM:\SYSTEM" -Name "ServerScript"
+New-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 1
+$Progress = Get-ItemPropertyValue 'HKLM:\ServerScript' -Name "Progress"
+
+switch ($Process) {
+    0 { Menu }
+    1 { ComputerSettings }
+    2 { ForestSetup }
+    default {}
+}
