@@ -134,7 +134,7 @@ function MakeADGroups {
     $OUList = $OUs -split ',\s*'
     foreach ($OU in $OUList) {
         # Perform your desired action with each OU
-        New-ADGroup -Name Supporter -GroupCategory Security -GroupScope Global -DisplayName "$OU Afdeling" -Path "OU=$OU,DC=$DomainName,DC=$DomainExtension"
+        New-ADGroup -Name $OU -GroupCategory Security -GroupScope Global -DisplayName "$OU Afdeling" -Path "OU=$OU,DC=$DomainName,DC=$DomainExtension"
     }
 }
 
