@@ -284,13 +284,3 @@ switch ($Progress) { # Looks for the value and runs the result in the switch sta
         MakeDriveMaps;
         MakeADUsers; }
 }
-
-DHCPSetup
-
-MakeOUs
-MakeOUFolders
-MakeADGroups
-MakeGPOs
-LinkGPOsToOUs
-MakeDriveMaps
-MakeADUsers
