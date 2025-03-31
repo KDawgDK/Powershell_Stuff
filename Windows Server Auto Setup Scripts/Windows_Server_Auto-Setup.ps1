@@ -18,8 +18,8 @@
             # $AccessTo = ""
     # DHCP Scope configurations
         $ScopeName = ""
-        $StartRangeIP = ""
-        $EndRangeIP = ""
+        $StartRangeIP = "" # Never start with 0 as it will comflict with the ScopeID
+        $EndRangeIP = "" # Never end with 255 as it will conflict with the broadcast
         $SubnetMask = ""
 
 ## Functions for the different things
