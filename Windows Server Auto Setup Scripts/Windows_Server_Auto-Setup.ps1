@@ -20,6 +20,7 @@
         $ScopeName = ""
         $StartRangeIP = ""
         $EndRangeIP = ""
+        $SubnetMask = ""
 
 ## Functions for the different things
 function BlankOrNotConfig { # Check if the variables are blank or have information, and if they don't, you go through manual configuration that will be saved to a config on C:\ServerConfig.txt
@@ -113,10 +114,9 @@ function DHCPSetup {
             $octets[3] = '0' # Set the last octet to 0 (192.168.20.*0* as an example)
             $ScopeID = $octets -join '.' # Reassemble the modified IP address
         Restart-Service dhcpserver
-        Add-DhcpServerv4Scope -name $ScopeName -StartRange $StartRangeIP -EndRange $EndRangeIP
-        Set-DhcpServerv4OptionValue -Value $GatewayIP -ScopeID $ScopeID
-        Set-DhcpServerv4OptionValue -DnsDomain "$DomainName.$DomainExtension" -DnsServer $ComputerIP q
-        Add-DhcpServerInDC -DnsName "$ComputerName.$DomainName" -IPAddress $ComputerIP 
+        Add-DhcpServerv4Scope -name $ScopeName -StartRange $StartRangeIP -EndRange $EndRangeIP -SubnetMask $SubnetMask -State Active
+        Set-DhcpServerv4OptionValue -OptionID 5 -Value $GatewayIP -ScopeID $ScopeID -ComputerName $ComputerName -DnsDomain "$DomainName.$DomainExtension" -DnsServer $ComputerIP q
+        Add-DhcpServerInDC -DnsName "$ComputerName.$DomainName" -IPAddress $ComputerIP
     }
 }
 
