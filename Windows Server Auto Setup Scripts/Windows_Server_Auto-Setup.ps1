@@ -115,8 +115,9 @@ function DHCPSetup {
             $ScopeID = $octets -join '.' # Reassemble the modified IP address
         Restart-Service dhcpserver
         Add-DhcpServerv4Scope -name $ScopeName -StartRange $StartRangeIP -EndRange $EndRangeIP -SubnetMask $SubnetMask -State Active
-        Set-DhcpServerv4OptionValue -OptionID 5 -Value $GatewayIP -ScopeID $ScopeID -ComputerName $ComputerName -DnsDomain "$DomainName.$DomainExtension" -DnsServer $ComputerIP q
-        Add-DhcpServerInDC -DnsName "$ComputerName.$DomainName" -IPAddress $ComputerIP
+        Set-DhcpServerv4OptionValue -OptionID 3 -Value 192.168.20.1 -ScopeID 192.168.20.0 -ComputerName "IT-Prods-DCServ"
+        Set-DhcpServerv4OptionValue -DnsDomain "$DomainName.$DomainExtension" -DnsServer 192.168.20.6 q
+        Add-DhcpServerInDC -DnsName "$ComputerName.$DomainName.$DomainExtension" -IPAddress $ComputerIP
     }
 }
 
