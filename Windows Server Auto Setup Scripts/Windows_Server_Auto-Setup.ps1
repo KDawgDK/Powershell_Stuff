@@ -1,5 +1,4 @@
 ## Variables for the configuration
-    $Credential = Get-Credential -Credential "$DomainName\Administrator"
     # Computer Settings
         $adapter = (Get-NetAdapter -Physical | Select-Object -First 1).ifIndex
         $ComputerName = "DCServ"
@@ -21,56 +20,120 @@
         $StartRangeIP = "" # Never start with 0 as it will comflict with the ScopeID
         $EndRangeIP = "" # Never end with 255 as it will conflict with the broadcast
         $SubnetMask = ""
-
+    $Credential = Get-Credential -Credential "$DomainName\Administrator"
+    
+    $registryPath = 'HKLM:\SYSTEM\ServerScript'
+    $valueName = 'Progress'
+    $valueData = 1  # Example DWORD value
+    
+    # Check if the registry key exists; if not, create it
+    if (-not (Test-Path -Path $registryPath)) {
+        New-Item -Path $registryPath -Force | Out-Null
+        Write-Host "Created registry key: $registryPath"
+    }
+    
+    # Check if the DWORD value exists; if not, create it
+    if (-not (Get-ItemProperty -Path $registryPath -Name $valueName -ErrorAction SilentlyContinue)) {
+        New-ItemProperty -Path $registryPath -Name $valueName -Value $valueData -PropertyType DWORD -Force | Out-Null
+        Write-Host "Created DWORD value '$valueName' with data '$valueData' in '$registryPath'."
+    } else {
+        Write-Host "DWORD value '$valueName' already exists in '$registryPath'."
+    }
 ## Functions for the different things
 function BlankOrNotConfig { # Check if the variables are blank or have information, and if they don't, you go through manual configuration that will be saved to a config on C:\ServerConfig.txt
-    New-Item -ItemType File -Name "ServerConfig.txt" -Path "C:"
-    if ($ComputerName -eq "") { # Asks the user for a computer name
-        $ComputerName = Read-Host = "What do you want to call your server"
-        Add-Content -Path "C:\ServerConfig.txt" -Value "Computer Name = $ComputerName"
+    # Helper function to prompt for user input until a non-empty value is provided
+    function Prompt-ForInput {
+        param (
+            [string]$PromptMessage
+        )
+        do {
+            $inputValue = Read-Host $PromptMessage
+            if ([string]::IsNullOrEmpty($inputValue)) {
+                Write-Host "Input cannot be empty. Please provide a value."
+            }
+        } while ([string]::IsNullOrEmpty($inputValue))
+        return $inputValue
     }
-    if ($ComputerIP -eq "") { # Asks the user for a IPv4 Address
-        $ComputerIP = Read-Host = "What IPv4 Address do you want your server to have?"
-        Add-Content -Path "C:\ServerConfig.txt" -Value "Computer IP = $ComputerIP"
-    }
-    if ($Prefix -eq "") { # Asks the user for a subnet prefix
-        $Prefix = Read-Host = "What do you want the subnet prefix to be?"
-        Add-Content -Path "C:\ServerConfig.txt" -Value "IP Prefix = $Prefix"
-    }
-    if ($WindowsFeatures -like "*AD-Domain-Services*") { # Make it check if AD-Domain Services is included in $WindowsFeatures and then follow with the 2 other if statements
-        if (($DomainName -and $DomainExtension) -eq "") { # Asks the user for a full domain name
-            $FullDomain = Read-Host "What domain do you want to have? example: 'name.extension' where 'extension' can be like 'com' or 'local'"
-            $Domain = $FullDomain-split '.\s*'
-            $DomainName = $Domain[1]
-            $DomainExtension = $Domain[2]
-            Add-Content -Path "C:\ServerConfig.txt" -Value "Domain Name = $DomainName"
-            Add-Content -Path "C:\ServerConfig.txt" -Value "Domain Extension $DomainExtension"
+
+    # Check if all relevant variables are empty
+    if (-not ($ComputerName -or $ComputerIP -or $Prefix -or $WindowsFeatures -or $DomainName -or $DomainExtension -or $OUs -or $ScopeName -or $StartRangeIP -or $EndRangeIP)) {
+        # Define the configuration file path
+        $configFilePath = "C:\ServerConfig.txt"
+
+        # Check if the configuration file already exists
+        if (-not (Test-Path -Path $configFilePath)) {
+            # Create the configuration file
+            New-Item -ItemType File -Path $configFilePath -Force | Out-Null
         }
-        if ($OUs -eq "") { # Asks the user for Operational Units
-            $OUs = Read-Host "What Operational Units do you have or want to have? note separate them with commas ',' "
-            Add-Content -Path "C:\ServerConfig.txt" -Value "OUs = $OUs"
+
+        # Prompt for Computer Name if not set
+        if ([string]::IsNullOrEmpty($ComputerName)) {
+            $ComputerName = Prompt-ForInput -PromptMessage "What do you want to call your server?"
+            Add-Content -Path $configFilePath -Value "Computer Name = $ComputerName"
         }
-    }
-    if ($WindowsFeatures -like "*DHCP*") { # Checks if the WindowsFeatures variable includes DHCP to configure DHCP stuff
-        if ($ScopeName -eq "") { # Manually name the scope if the variable is blank
-            $ScopeName = Read-Host "What do you want the scope name to be? default will be {DomainName}-DHCP_Scope"
-            if ($ScopeName -ne "") { # Adds the scope name config to the ServerConfig.txt file if the user enteret in anything
-                Add-Content -Path "C:\ServerConfig.txt" -Value "Scope Name = $ScopeName"
+
+        # Prompt for Computer IP if not set
+        if ([string]::IsNullOrEmpty($ComputerIP)) {
+            $ComputerIP = Prompt-ForInput -PromptMessage "What IPv4 Address do you want your server to have?"
+            Add-Content -Path $configFilePath -Value "Computer IP = $ComputerIP"
+        }
+
+        # Prompt for Subnet Prefix if not set
+        if ([string]::IsNullOrEmpty($Prefix)) {
+            $Prefix = Prompt-ForInput -PromptMessage "What do you want the subnet prefix to be?"
+            Add-Content -Path $configFilePath -Value "IP Prefix = $Prefix"
+        }
+
+        # Check if Windows Features include AD-Domain-Services
+        if ($WindowsFeatures -like "*AD-Domain-Services*") {
+            # Prompt for Domain Name and Extension if not set
+            if ([string]::IsNullOrEmpty($DomainName) -or [string]::IsNullOrEmpty($DomainExtension)) {
+                $FullDomain = Prompt-ForInput -PromptMessage "Enter the domain (e.g., 'name.extension'):"
+                $DomainParts = $FullDomain -split '\.'
+                if ($DomainParts.Count -ge 2) {
+                    $DomainName = $DomainParts[0]
+                    $DomainExtension = $DomainParts[1]
+                    Add-Content -Path $configFilePath -Value "Domain Name = $DomainName"
+                    Add-Content -Path $configFilePath -Value "Domain Extension = $DomainExtension"
+                } else {
+                    Write-Host "Invalid domain format. Please enter in 'name.extension' format."
+                }
+            }
+
+            # Prompt for Organizational Units if not set
+            if ([string]::IsNullOrEmpty($OUs)) {
+                $OUs = Prompt-ForInput -PromptMessage "Enter Organizational Units (separate with commas):"
+                Add-Content -Path $configFilePath -Value "OUs = $OUs"
             }
         }
-        if ($StartRangeIP -eq "") { # Manually input the start range if the variable is blank
-            $StartRangeIP = Read-Host "Where should the start of the range be?"
-            Add-Content -Path "C:\ServerConfig.txt" -Value "Start Range = $StartRangeIP"
+
+        # Check if Windows Features include DHCP
+        if ($WindowsFeatures -like "*DHCP*") {
+            # Prompt for Scope Name if not set
+            if ([string]::IsNullOrEmpty($ScopeName)) {
+                $ScopeName = Read-Host "Enter the scope name (default: ${DomainName}-DHCP_Scope)"
+                if (-not [string]::IsNullOrEmpty($ScopeName)) {
+                    Add-Content -Path $configFilePath -Value "Scope Name = $ScopeName"
+                }
+            }
+
+            # Prompt for Start Range IP if not set
+            if ([string]::IsNullOrEmpty($StartRangeIP)) {
+                $StartRangeIP = Prompt-ForInput -PromptMessage "Enter the start of the IP range:"
+                Add-Content -Path $configFilePath -Value "Start Range = $StartRangeIP"
+            }
+
+            # Prompt for End Range IP if not set
+            if ([string]::IsNullOrEmpty($EndRangeIP)) {
+                $EndRangeIP = Prompt-ForInput -PromptMessage "Enter the end of the IP range:"
+                Add-Content -Path $configFilePath -Value "End Range = $EndRangeIP"
+            }
         }
-        if ($EndRangeIP -eq "") { # Manually input the end range if the variable is blank
-            $EndRangeIP = Read-Host "Where should the end of the range be?"
-            Add-Content -Path "C:\ServerConfig.txt" -Value "End Range = $EndRangeIP"
-        }
-    }
-    Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 2
+}
 }
 
 function ComputerSettings {
+
     ## New scheduled task that will run the powershell script at logon
         $actions = (New-ScheduledTaskAction -Execute 'Windows_Server_Auto-Setup.ps1')
         $trigger = New-ScheduledTaskTrigger -AtLogOn
@@ -94,13 +157,13 @@ function ComputerSettings {
         # Perform your desired action with each feature
         Install-WindowsFeature -Name $Feature -IncludeManagementTools
     }
-    Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 3
+    Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 2
     Restart-Computer
 }
 
 function ForestSetup {
     Install-ADDSForest -DomainName "$DomainName.$DomainExtension" -InstallDNS;
-    Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 4
+    Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 3
     Restart-Computer
 }
 
@@ -116,8 +179,9 @@ function DHCPSetup {
         Restart-Service dhcpserver
         Add-DhcpServerv4Scope -name $ScopeName -StartRange $StartRangeIP -EndRange $EndRangeIP -SubnetMask $SubnetMask -State Active
         Set-DhcpServerv4OptionValue -OptionID 3 -Value $StartRangeIP -ScopeID $ScopeID -ComputerName $ComputerName
-        Set-DhcpServerv4OptionValue -DnsDomain "$DomainName.$DomainExtension" -DnsServer $ComputerIP q
+        Set-DhcpServerv4OptionValue -DnsDomain "$DomainName.$DomainExtension" -DnsServer $ComputerIP
         Add-DhcpServerInDC -DnsName "$ComputerName.$DomainName.$DomainExtension" -IPAddress $ComputerIP
+        Set-DhcpServerDnsCredential -Credential $Credential -ComputerName $ComputerName
     }
 }
 
@@ -263,20 +327,20 @@ function MakeADUsers {
     Unregister-ScheduledTask -TaskName 'Windows-Server-Setup'
     Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 0
     }
+    netsh DHCP add SecurityGroups
 }
-New-Item -Path "HKLM:\SYSTEM" -Name "ServerScript"
-New-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 1
+
 
 ## Actual Running of the configuration functions
 
-$Progress = Get-ItemPropertyValue 'HKLM:\ServerScript' -Name "Progress"
+$Progress = Get-ItemPropertyValue 'HKLM:\SYSTEM\ServerScript' -Name "Progress"
 
 switch ($Progress) { # Looks for the value and runs the result in the switch statement
     0 { Menu }
-    1 { BlankOrNotConfig }
-    2 { ComputerSettings }
-    3 { ForestSetup }
-    4 { DHCPSetup;
+    1 { BlankOrNotConfig;
+        ComputerSettings  }
+    2 { ForestSetup }
+    3 { DHCPSetup;
         MakeOUs;
         MakeOUFolders;
         MakeADGroups;
