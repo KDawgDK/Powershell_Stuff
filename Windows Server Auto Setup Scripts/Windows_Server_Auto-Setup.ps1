@@ -21,7 +21,7 @@
         $EndRangeIP = "" # Never end with 255 as it will conflict with the broadcast
         $SubnetMask = ""
 
-    
+# Create registry key for the progress if it doesn't exist
     $registryPath = 'HKLM:\SYSTEM\ServerScript'
     $valueName = 'Progress'
     $valueData = 1  # Example DWORD value
@@ -129,7 +129,7 @@ function BlankOrNotConfig { # Check if the variables are blank or have informati
                 Add-Content -Path $configFilePath -Value "End Range = $EndRangeIP"
             }
         }
-}
+    }
 }
 
 function ComputerSettings {
