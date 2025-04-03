@@ -164,7 +164,6 @@ function ComputerSettings {
 function ForestSetup {
     Install-ADDSForest -DomainName "$DomainName.$DomainExtension" -InstallDNS;
     Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 3
-    Restart-Computer
 }
 
 function DHCPSetup {
