@@ -20,7 +20,7 @@
         $StartRangeIP = "" # Never start with 0 as it will comflict with the ScopeID
         $EndRangeIP = "" # Never end with 255 as it will conflict with the broadcast
         $SubnetMask = ""
-    $Credential = Get-Credential -Credential "$DomainName\Administrator"
+
     
     $registryPath = 'HKLM:\SYSTEM\ServerScript'
     $valueName = 'Progress'
@@ -42,7 +42,7 @@
 ## Functions for the different things
 function BlankOrNotConfig { # Check if the variables are blank or have information, and if they don't, you go through manual configuration that will be saved to a config on C:\ServerConfig.txt
     # Helper function to prompt for user input until a non-empty value is provided
-    function Prompt-ForInput {
+    function PromptForInput {
         param (
             [string]$PromptMessage
         )
@@ -180,6 +180,7 @@ function DHCPSetup {
         Set-DhcpServerv4OptionValue -OptionID 3 -Value $StartRangeIP -ScopeID $ScopeID -ComputerName $ComputerName
         Set-DhcpServerv4OptionValue -DnsDomain "$DomainName.$DomainExtension" -DnsServer $ComputerIP
         Add-DhcpServerInDC -DnsName "$ComputerName.$DomainName.$DomainExtension" -IPAddress $ComputerIP
+        $Credential = Get-Credential -Credential "$DomainName\Administrator"
         Set-DhcpServerDnsCredential -Credential $Credential -ComputerName $ComputerName
     }
 }
@@ -226,8 +227,11 @@ function MakeDriveMaps {
     $DriveLettersList = $DriveLetters -split ',\s*'
     $DrivePermissionsList = $DrivePermissions -split ',\s*'
 
-    # Ensure all lists have the same count
-    $count = [math]::Min($OUList.Count, $DriveLettersList.Count, $DrivePermissionsList.Count)
+    # Collect the counts of each list
+    $counts = @($OUList.Count, $DriveLettersList.Count, $DrivePermissionsList.Count)
+
+    # Determine the minimum count
+    $count = ($counts | Measure-Object -Minimum).Minimum
 
     for ($i = 0; $i -lt $count; $i++) {
         $OU = $OUList[$i]
