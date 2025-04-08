@@ -5,7 +5,7 @@
         $ComputerIP = "192.168.20.6"
         $Prefix = "24" # Change this to whatever you wish it to be
         # Windows Features
-            $WindowsFeatures = 'AD-Domain-Services, DNS, DHCP' # Separate the Features with ','
+            $WindowsFeatures = 'AD-Domain-Services, DNS' # Separate the Features with ','
     # AD Configurations if you do use it
         $DomainName = "it-prods"
         $DomainExtension = "local"
@@ -13,7 +13,7 @@
         $ManualUserCreate = "N" # Either 'Y'es or 'N'o to manually create users
         # Drive Maps Configuration
             $DrivePermissions = "FullControl, Modify, " # Separate the permissions with ','
-            $DriveLetters = "S, P, L" # Separate the Letters
+            $DriveLetters = "S, P, L" # Separate the Letters with ','
             # $AccessTo = ""
     # DHCP Scope configurations
         $ScopeName = ""
@@ -24,7 +24,7 @@
 # Create registry key for the progress if it doesn't exist
     $registryPath = 'HKLM:\SYSTEM\ServerScript'
     $valueName = 'Progress'
-    $valueData = 1  # Example DWORD value
+    $valueData = 1
     
     # Check if the registry key exists; if not, create it
     if (-not (Test-Path -Path $registryPath)) {
@@ -37,7 +37,7 @@
         New-ItemProperty -Path $registryPath -Name $valueName -Value $valueData -PropertyType DWORD -Force | Out-Null
         Write-Host "Created DWORD value '$valueName' with data '$valueData' in '$registryPath'."
     } else {
-        Write-Host "DWORD value '$valueName' already exists in '$registryPath'."
+        
     }
 ## Functions for the different things
 function BlankOrNotConfig { # Check if the variables are blank or have information, and if they don't, you go through manual configuration that will be saved to a config on C:\ServerConfig.txt
@@ -167,7 +167,7 @@ function ForestSetup {
 }
 
 function DHCPSetup {
-    if ($WindowsFeatures -like "*AD-Domain-Services*") {
+    if ($WindowsFeatures -like "*DHCP*") {
         if ($ScopeName -eq "") {
             $ScopeName = "$DomainName-DHCP_Scope"
         }
@@ -226,6 +226,7 @@ function MakeDriveMaps {
     $OUList = $OUs -split ',\s*'
     $DriveLettersList = $DriveLetters -split ',\s*'
     $DrivePermissionsList = $DrivePermissions -split ',\s*'
+    $Credential = Get-Credential -Credential "$DomainName\Administrator"
 
     # Collect the counts of each list
     $counts = @($OUList.Count, $DriveLettersList.Count, $DrivePermissionsList.Count)
@@ -239,7 +240,7 @@ function MakeDriveMaps {
         $PermissionGroup = $DrivePermissionsList[$i]
 
         # Create the drive mapping
-        New-PSDrive -Name $DriveLetter -Root "\\$ComputerName\$OU" -Persist -PSProvider FileSystem
+        New-PSDrive -Name $DriveLetter -Root "\\$ComputerName\$OU" -Persist -PSProvider FileSystem -Credential $Credential -Scope Global
 
         # Set NTFS Permissions
         $acl = Get-Acl -Path "\\$ComputerName\$OU"
