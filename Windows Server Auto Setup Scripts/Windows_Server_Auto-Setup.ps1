@@ -14,7 +14,8 @@
         # Drive Maps Configuration
             $DrivePermissions = "FullControl, Modify, " # Separate the permissions with ','
             $DriveLetters = "S, P, L" # Separate the Letters with ','
-            # $AccessTo = ""
+            # $AccessTo = "" # Separate who has access to what with ',', use $OUs as a guide
+            # $AccessToPerm = "" # Separate who has access to what with ',', use $DrivePermissions as a guide
     # DHCP Scope configurations
         $ScopeName = ""
         $StartRangeIP = "" # Never start with 0 as it will comflict with the ScopeID
@@ -239,17 +240,17 @@ function MakeDriveMaps {
         $DriveLetter = $DriveLettersList[$i]
         $PermissionGroup = $DrivePermissionsList[$i]
 
+                # Set NTFS Permissions
+                $acl = Get-Acl -Path "\\$ComputerName\$OU"
+                $accessRule = New-Object System.Security.AccessControl.FileSystemAccessRule($OU, $PermissionGroup, "ContainerInherit,ObjectInherit", "None", "Allow")
+                $acl.SetAccessRule($accessRule)
+                Set-Acl -Path "\\$ComputerName\$OU" -AclObject $acl
+        
+                # Set Share Permissions
+                Grant-SmbShareAccess -Name $OU -AccountName $PermissionGroup -AccessRight Full -Force
+
         # Create the drive mapping
         New-PSDrive -Name $DriveLetter -Root "\\$ComputerName\$OU" -Persist -PSProvider FileSystem -Credential $Credential -Scope Global
-
-        # Set NTFS Permissions
-        $acl = Get-Acl -Path "\\$ComputerName\$OU"
-        $accessRule = New-Object System.Security.AccessControl.FileSystemAccessRule($OU, $PermissionGroup, "ContainerInherit,ObjectInherit", "None", "Allow")
-        $acl.SetAccessRule($accessRule)
-        Set-Acl -Path "\\$ComputerName\$OU" -AclObject $acl
-
-        # Set Share Permissions
-        Grant-SmbShareAccess -Name $OU -AccountName $PermissionGroup -AccessRight Full -Force
     }
 }
 
