@@ -12,12 +12,13 @@
         $OUs = "Supportere, Produktion, Levering" # Separate the OUs with ','
         $ManualUserCreate = "N" # Either 'Y'es or 'N'o to manually create users
         # Drive Maps Configuration
-            $DrivePermissions = "FullControl, Modify, " # Separate the permissions with ','
+            $DrivePermissions = "FullControl, Modify" # Separate the permissions with ','
             $DriveLetters = "S, P, L" # Separate the Letters with ','
-            # $AccessTo = "" # Separate who has access to what with ',', use $OUs as a guide
-            # $AccessToPerm = "" # Separate who has access to what with ',', use $DrivePermissions as a guide
+            $DriveFullAccess = "Supportere"
+            $AccessTo = "Produktion" # Separate who has access to what with ',', use $OUs as a guide since it follows that order you wrote them in
+            # $AccessToPerm = "" # Separate who has access to what with ',', use $DrivePermissions as a guide since it follows that order you wrote them in
     # DHCP Scope configurations
-        $ScopeName = ""
+        $ScopeName = "$Domain-DHCPScope"
         $StartRangeIP = "" # Never start with 0 as it will comflict with the ScopeID
         $EndRangeIP = "" # Never end with 255 as it will conflict with the broadcast
         $SubnetMask = ""
@@ -194,12 +195,36 @@ function MakeOUs {
 }
 
 function MakeOUFolders {
-    mkdir 'C:\OUFolders'
+    $basePath = 'C:\OUFolders'
+    mkdir $basePath -Force | Out-Null
+
     $OUList = $OUs -split ',\s*'
-    foreach ($OU in $OUList) {
-        mkdir "C:\OUFolders\$OU"
+    $DrivePermissionsList = $DrivePermissions -split ',\s*'
+    $QualifiedPermissionGroup = "$DomainName\$PermissionGroup"
+    for ($i = 0; $i -lt $OUList.Count; $i++) {
+        $OU = $OUList[$i]
+        $PermissionGroup = if ($DrivePermissionsList.Count -gt $i) { $DrivePermissionsList[$i] } else { "Everyone" }
+
+        $folderPath = Join-Path -Path $basePath -ChildPath $OU
+        mkdir $folderPath -Force | Out-Null
+
+        # Share the folder
+        New-SmbShare -Name $OU -Path $folderPath -FullAccess $QualifiedPermissionGroup -ErrorAction SilentlyContinue
+
+        # NTFS Permissions
+        $acl = Get-Acl -Path $folderPath
+        $accessRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+            $QualifiedPermissionGroup,
+            [System.Security.AccessControl.FileSystemRights]::Modify,
+            [System.Security.AccessControl.InheritanceFlags]::ContainerInherit,
+            [System.Security.AccessControl.PropagationFlags]::None,
+            [System.Security.AccessControl.AccessControlType]::Allow
+        )
+        $acl.SetAccessRule($accessRule)
+        Set-Acl -Path $folderPath -AclObject $acl
     }
 }
+
 
 function MakeADGroups {
     $OUList = $OUs -split ',\s*'
