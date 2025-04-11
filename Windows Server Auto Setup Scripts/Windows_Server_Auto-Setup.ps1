@@ -14,7 +14,8 @@
         # Drive Maps Configuration
             $DrivePermissions = "FullControl, Modify" # Separate the permissions with ','
             $DriveLetters = "S, P, L" # Separate the Letters with ','
-            $DriveFullAccess = "Supportere"
+            $DriveFullAccessSMB = "Supportere"
+            $DriveModifyAccessSMB = "Produktion, Levering"
             $AccessTo = "Produktion" # Separate who has access to what with ',', use $OUs as a guide since it follows that order you wrote them in
             # $AccessToPerm = "" # Separate who has access to what with ',', use $DrivePermissions as a guide since it follows that order you wrote them in
     # DHCP Scope configurations
@@ -196,25 +197,36 @@ function MakeOUs {
 
 function MakeOUFolders {
     $basePath = 'C:\OUFolders'
-    mkdir $basePath -Force | Out-Null
+    New-Item -ItemType Directory -Path $basePath -Force | Out-Null
 
     $OUList = $OUs -split ',\s*'
-    $DrivePermissionsList = $DrivePermissions -split ',\s*'
-    $QualifiedPermissionGroup = "$DomainName\$PermissionGroup"
+    $DriveModifyAccessSMBList = $DriveModifyAccessSMB -split ',\s*'
+    $FullAccess = "$DomainName\$DriveFullAccessSMB"
     for ($i = 0; $i -lt $OUList.Count; $i++) {
         $OU = $OUList[$i]
-        $PermissionGroup = if ($DrivePermissionsList.Count -gt $i) { $DrivePermissionsList[$i] } else { "Everyone" }
-
+        $DriveModifyAccess =$DriveModifyAccessSMBList[$i]
+        $CurrentOU = "$DomainName\$OU"
         $folderPath = Join-Path -Path $basePath -ChildPath $OU
-        mkdir $folderPath -Force | Out-Null
+        New-Item -ItemType Directory -Path $folderPath -Force | Out-Null
 
-        # Share the folder
-        New-SmbShare -Name $OU -Path $folderPath -FullAccess $QualifiedPermissionGroup -ErrorAction SilentlyContinue
+        # Share the folder 
+        New-SmbShare -Name $OU -Path $folderPath -FullAccess $FullAccess -ErrorAction SilentlyContinue
+        New-SmbShare -Name $OU -Path $folderPath -FullAccess $CurrentOUPerms -ErrorAction SilentlyContinue
 
-        # NTFS Permissions
+        # Set NTFS Permissions (e.g., granting Modify access)
         $acl = Get-Acl -Path $folderPath
         $accessRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
-            $QualifiedPermissionGroup,
+            $FullAccess,
+            [System.Security.AccessControl.FileSystemRights]::Modify,
+            [System.Security.AccessControl.InheritanceFlags]::ContainerInherit,
+            [System.Security.AccessControl.PropagationFlags]::None,
+            [System.Security.AccessControl.AccessControlType]::Allow
+        )
+        $acl.SetAccessRule($accessRule)
+        Set-Acl -Path $folderPath -AclObject $acl
+        $acl = Get-Acl -Path $folderPath
+        $accessRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+            $CurrentOU,
             [System.Security.AccessControl.FileSystemRights]::Modify,
             [System.Security.AccessControl.InheritanceFlags]::ContainerInherit,
             [System.Security.AccessControl.PropagationFlags]::None,
