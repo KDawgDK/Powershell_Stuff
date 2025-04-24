@@ -202,7 +202,6 @@ function MakeADGroups {
     }
 }
 
-
 function MakeOUFolders {
     $basePath = 'C:\OUFolders'
     New-Item -ItemType Directory -Path $basePath -Force | Out-Null
@@ -218,20 +217,28 @@ function MakeOUFolders {
         New-Item -ItemType Directory -Path $folderPath -Force | Out-Null
 
         # Share the folder 
-        New-SmbShare -Name $OU -Path $folderPath -FullAccess $FullAccess -ErrorAction SilentlyContinue
-        New-SmbShare -Name $OU -Path $folderPath -ChangeAccess $CurrentOUPerms -ErrorAction SilentlyContinue
-
-        # Set NTFS Permissions (e.g., granting Modify access)
+        New-SmbShare -Name $OU -Path $folderPath -FullAccess $FullAccess 
+        New-SmbShare -Name $OU -Path $folderPath -ChangeAccess $CurrentOUPerms 
         $acl = Get-Acl -Path $folderPath
+        # Disable inheritance and remove all inherited permissions
+        $acl.SetAccessRuleProtection($true, $false)
+        # Remove all existing access rules
+        $acl.Access | ForEach-Object {
+            $acl.RemoveAccessRule($_)
+        }
+        # Set NTFS Permissions (e.g., granting Modify access)
+        # Full control for the admin group / special group
         $accessRule1 = New-Object System.Security.AccessControl.FileSystemAccessRule(
             $FullAccess,
-            [System.Security.AccessControl.FileSystemRights]::Modify,
+            [System.Security.AccessControl.FileSystemRights]::FullControl,
             [System.Security.AccessControl.InheritanceFlags]::ContainerInherit,
+            [System.Security.AccessControl.InheritanceFlags]::ObjectInherit,
             [System.Security.AccessControl.PropagationFlags]::None,
             [System.Security.AccessControl.AccessControlType]::Allow
         )
         $acl.SetAccessRule($accessRule1)
         Set-Acl -Path $folderPath -AclObject $acl
+        # Modify access for the current OU group
         $acl = Get-Acl -Path $folderPath
         $accessRule2 = New-Object System.Security.AccessControl.FileSystemAccessRule(
             $CurrentOU,
@@ -381,12 +388,14 @@ switch ($Progress) { # Looks for the value and runs the result in the switch sta
     1 { BlankOrNotConfig;
         ComputerSettings  }
     2 { ForestSetup }
-    3 { DHCPSetup;
+    3 { 
+        DHCPSetup;
         MakeOUs;
         MakeADGroups;
         MakeOUFolders;
         MakeGPOs;
         LinkGPOsToOUs;
         MakeDriveMaps;
-        MakeADUsers; }
+        MakeADUsers; 
+    }
 }
