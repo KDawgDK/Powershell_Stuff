@@ -136,7 +136,6 @@ function BlankOrNotConfig { # Check if the variables are blank or have informati
 }
 
 function ComputerSettings {
-
     ## New scheduled task that will run the powershell script at logon
         $actions = (New-ScheduledTaskAction -Execute 'Windows_Server_Auto-Setup.ps1')
         $trigger = New-ScheduledTaskTrigger -AtLogOn
@@ -195,16 +194,25 @@ function MakeOUs {
     }
 }
 
+function MakeADGroups {
+    $OUList = $OUs -split ',\s*'
+    foreach ($OU in $OUList) {
+        # Perform your desired action with each OU
+        New-ADGroup -Name "$OU-SG" -GroupCategory Security -GroupScope Global -DisplayName "$OU Afdeling" -Path "OU=$OU,DC=$DomainName,DC=$DomainExtension"
+    }
+}
+
+
 function MakeOUFolders {
     $basePath = 'C:\OUFolders'
     New-Item -ItemType Directory -Path $basePath -Force | Out-Null
     $DriveModifyAccessSMBList = $DriveModifyAccessSMB -split ',\s'
     $OUList = $OUs -split ',\s*'
     ## $DriveModifyAccessSMBList = $DriveModifyAccessSMB -split ',\s*'
-    $FullAccess = "$DomainName\$DriveFullAccessSMB"
+    $FullAccess = "$DomainName\$DriveFullAccessSMB-SG"
     for ($i = 0; $i -lt $OUList.Count; $i++) {
         $OU = $OUList[$i]
-        $CurrentOU = "$DomainName\$OU"
+        $CurrentOU = "$DomainName\$OU-SG"
         $CurrentOUPerms = "$Domain\$DriveModifyAccessSMBList"
         $folderPath = Join-Path -Path $basePath -ChildPath $OU
         New-Item -ItemType Directory -Path $folderPath -Force | Out-Null
@@ -234,14 +242,6 @@ function MakeOUFolders {
         )
         $acl.SetAccessRule($accessRule2)
         Set-Acl -Path $folderPath -AclObject $acl
-    }
-}
-
-function MakeADGroups {
-    $OUList = $OUs -split ',\s*'
-    foreach ($OU in $OUList) {
-        # Perform your desired action with each OU
-        New-ADGroup -Name $OU -GroupCategory Security -GroupScope Global -DisplayName "$OU Afdeling" -Path "OU=$OU,DC=$DomainName,DC=$DomainExtension"
     }
 }
 
@@ -383,8 +383,8 @@ switch ($Progress) { # Looks for the value and runs the result in the switch sta
     2 { ForestSetup }
     3 { DHCPSetup;
         MakeOUs;
-        MakeOUFolders;
         MakeADGroups;
+        MakeOUFolders;
         MakeGPOs;
         LinkGPOsToOUs;
         MakeDriveMaps;
