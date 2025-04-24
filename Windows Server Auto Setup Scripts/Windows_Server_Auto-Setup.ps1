@@ -209,6 +209,7 @@ function MakeOUFolders {
     $OUList = $OUs -split ',\s*'
     ## $DriveModifyAccessSMBList = $DriveModifyAccessSMB -split ',\s*'
     $FullAccess = "$DomainName\$DriveFullAccessSMB-SG"
+    $FullAccessAdmin = "$DomainName\Administrators"
     for ($i = 0; $i -lt $OUList.Count; $i++) {
         $OU = $OUList[$i]
         $CurrentOU = "$DomainName\$OU-SG"
@@ -217,37 +218,49 @@ function MakeOUFolders {
         New-Item -ItemType Directory -Path $folderPath -Force | Out-Null
 
         # Share the folder 
-        New-SmbShare -Name $OU -Path $folderPath -FullAccess $FullAccess 
-        New-SmbShare -Name $OU -Path $folderPath -ChangeAccess $CurrentOUPerms 
+        New-SmbShare -Name $OU -Path $folderPath -FullAccess $FullAccess -ErrorAction SilentlyContinue
+        New-SmbShare -Name $OU -Path $folderPath -ChangeAccess $CurrentOUPerms -ErrorAction SilentlyContinue
+
+        
         $acl = Get-Acl -Path $folderPath
         # Disable inheritance and remove all inherited permissions
-        $acl.SetAccessRuleProtection($true, $false)
+        <#$acl.SetAccessRuleProtection($true, $false)
+
         # Remove all existing access rules
         $acl.Access | ForEach-Object {
             $acl.RemoveAccessRule($_)
-        }
-        # Set NTFS Permissions (e.g., granting Modify access)
-        # Full control for the admin group / special group
+        }#>
+
+    # Set NTFS Permissions (Full Control for $FullAccess group)
         $accessRule1 = New-Object System.Security.AccessControl.FileSystemAccessRule(
             $FullAccess,
             [System.Security.AccessControl.FileSystemRights]::FullControl,
             [System.Security.AccessControl.InheritanceFlags]::ContainerInherit,
-            [System.Security.AccessControl.InheritanceFlags]::ObjectInherit,
             [System.Security.AccessControl.PropagationFlags]::None,
             [System.Security.AccessControl.AccessControlType]::Allow
         )
         $acl.SetAccessRule($accessRule1)
         Set-Acl -Path $folderPath -AclObject $acl
-        # Modify access for the current OU group
+    # Set NTFS Permissions (Full Control for Administrators group)
+        <#$accessRule2 = New-Object System.Security.AccessControl.FileSystemAccessRule(
+            $FullAccessAdmin,
+            [System.Security.AccessControl.FileSystemRights]::FullControl,
+            [System.Security.AccessControl.InheritanceFlags]::ContainerInherit,
+            [System.Security.AccessControl.PropagationFlags]::None,
+            [System.Security.AccessControl.AccessControlType]::Allow
+        )
+        $acl.SetAccessRule($accessRule2)#>
+        Set-Acl -Path $folderPath -AclObject $acl
         $acl = Get-Acl -Path $folderPath
-        $accessRule2 = New-Object System.Security.AccessControl.FileSystemAccessRule(
+    # Set NTFS Permissions (Modify for $CurrentOU group)
+        $accessRule3 = New-Object System.Security.AccessControl.FileSystemAccessRule(
             $CurrentOU,
             [System.Security.AccessControl.FileSystemRights]::Modify,
             [System.Security.AccessControl.InheritanceFlags]::ContainerInherit,
             [System.Security.AccessControl.PropagationFlags]::None,
             [System.Security.AccessControl.AccessControlType]::Allow
         )
-        $acl.SetAccessRule($accessRule2)
+        $acl.SetAccessRule($accessRule3)
         Set-Acl -Path $folderPath -AclObject $acl
     }
 }
@@ -396,6 +409,6 @@ switch ($Progress) { # Looks for the value and runs the result in the switch sta
         MakeGPOs;
         LinkGPOsToOUs;
         MakeDriveMaps;
-        MakeADUsers; 
+        MakeADUsers;
     }
 }
