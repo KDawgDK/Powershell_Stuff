@@ -205,63 +205,36 @@ function MakeADGroups {
 function MakeOUFolders {
     $basePath = 'C:\OUFolders'
     New-Item -ItemType Directory -Path $basePath -Force | Out-Null
-    $DriveModifyAccessSMBList = $DriveModifyAccessSMB -split ',\s'
+    $DriveModifyAccessSMBList = $DriveModifyAccessSMB -split ',\s*'
     $OUList = $OUs -split ',\s*'
-    ## $DriveModifyAccessSMBList = $DriveModifyAccessSMB -split ',\s*'
-    $FullAccess = "$DomainName\$DriveFullAccessSMB-SG"
-    $FullAccessAdmin = "$DomainName\Administrators"
+
     for ($i = 0; $i -lt $OUList.Count; $i++) {
         $OU = $OUList[$i]
-        $CurrentOU = "$DomainName\$OU-SG"
-        $CurrentOUPerms = "$Domain\$DriveModifyAccessSMBList"
         $folderPath = Join-Path -Path $basePath -ChildPath $OU
         New-Item -ItemType Directory -Path $folderPath -Force | Out-Null
 
-        # Share the folder 
-        New-SmbShare -Name $OU -Path $folderPath -FullAccess $FullAccess -ErrorAction SilentlyContinue
-        New-SmbShare -Name $OU -Path $folderPath -ChangeAccess $CurrentOUPerms -ErrorAction SilentlyContinue
+        # Share the folder
+        New-SmbShare -Name $OU -Path $folderPath -FullAccess "$DomainName\$DriveFullAccessSMB-SG" -ErrorAction SilentlyContinue
+        New-SmbShare -Name $OU -Path $folderPath -ChangeAccess "$DomainName\$DriveModifyAccessSMBList-SG" -ErrorAction SilentlyContinue
 
-        
+        # Get the current ACL
         $acl = Get-Acl -Path $folderPath
-        # Disable inheritance and remove all inherited permissions
-        <#$acl.SetAccessRuleProtection($true, $false)
-
+        # Enable protection to prevent inheritance
+        $acl.SetAccessRuleProtection($true, $false)
         # Remove all existing access rules
         $acl.Access | ForEach-Object {
             $acl.RemoveAccessRule($_)
-        }#>
+        }
+        Set-Acl -Path $folderPath -AclObject $acl
 
-    # Set NTFS Permissions (Full Control for $FullAccess group)
-        $accessRule1 = New-Object System.Security.AccessControl.FileSystemAccessRule(
-            $FullAccess,
-            [System.Security.AccessControl.FileSystemRights]::FullControl,
-            [System.Security.AccessControl.InheritanceFlags]::ContainerInherit,
-            [System.Security.AccessControl.PropagationFlags]::None,
-            [System.Security.AccessControl.AccessControlType]::Allow
-        )
-        $acl.SetAccessRule($accessRule1)
-        Set-Acl -Path $folderPath -AclObject $acl
-    # Set NTFS Permissions (Full Control for Administrators group)
-        <#$accessRule2 = New-Object System.Security.AccessControl.FileSystemAccessRule(
-            $FullAccessAdmin,
-            [System.Security.AccessControl.FileSystemRights]::FullControl,
-            [System.Security.AccessControl.InheritanceFlags]::ContainerInherit,
-            [System.Security.AccessControl.PropagationFlags]::None,
-            [System.Security.AccessControl.AccessControlType]::Allow
-        )
-        $acl.SetAccessRule($accessRule2)#>
-        Set-Acl -Path $folderPath -AclObject $acl
-        $acl = Get-Acl -Path $folderPath
-    # Set NTFS Permissions (Modify for $CurrentOU group)
-        $accessRule3 = New-Object System.Security.AccessControl.FileSystemAccessRule(
-            $CurrentOU,
-            [System.Security.AccessControl.FileSystemRights]::Modify,
-            [System.Security.AccessControl.InheritanceFlags]::ContainerInherit,
-            [System.Security.AccessControl.PropagationFlags]::None,
-            [System.Security.AccessControl.AccessControlType]::Allow
-        )
-        $acl.SetAccessRule($accessRule3)
-        Set-Acl -Path $folderPath -AclObject $acl
+        # Grant Full Control to Administrators
+        icacls $folderPath /grant "BUILTIN\Administrators:(OI)(CI)F" /T /C
+
+        # Grant Full Control to the FullAccessSMB group
+        icacls $folderPath /grant "$DomainName\$DriveFullAccessSMB-SG:(OI)(CI)F" /T /C
+
+        # Grant Modify permissions to the OU-specific security group
+        icacls $folderPath /grant "$DomainName\$OU-SG:(OI)(CI)M" /T /C
     }
 }
 
