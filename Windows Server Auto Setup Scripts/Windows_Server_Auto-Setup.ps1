@@ -187,6 +187,10 @@ function DHCPSetup {
     }
 }
 
+function ReverseLookup {
+    
+}
+
 function MakeOUs {
     $OUList = $OUs -split ',\s*'
     foreach ($OU in $OUList) {
