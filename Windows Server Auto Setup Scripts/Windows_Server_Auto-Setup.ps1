@@ -24,6 +24,8 @@
         $EndRangeIP = "" # Never end with 255 as it will conflict with the broadcast
         $SubnetMask = ""
 
+    $GPODescription = "Dette er en GPO for $OU"
+
 # Create registry key for the progress if it doesn't exist
     $registryPath = 'HKLM:\SYSTEM\ServerScript'
     $valueName = 'Progress'
@@ -245,7 +247,7 @@ function MakeOUFolders {
 function MakeGPOs {
     $OUList = $OUs -split ',\s*'
     foreach ($OU in $OUList) {
-    New-GPO $OU -Comment "This is a GPO for $OU"
+    New-GPO $OU -Comment $GPODescription
     }
 }
 
