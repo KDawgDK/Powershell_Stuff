@@ -15,7 +15,6 @@
             $DrivePermissions = "FullControl, Modify" # Separate the permissions with ','
             $DriveLetters = "S, P, L" # Separate the Letters with ','
             $DriveFullAccessSMB = "Supportere"
-            $DriveModifyAccessSMB = "Produktion, Levering"
             ## $AccessTo = "Produktion" # Separate who has access to what with ',', use $OUs as a guide since it follows that order you wrote them in
             # $AccessToPerm = "" # Separate who has access to what with ',', use $DrivePermissions as a guide since it follows that order you wrote them in
     # DHCP Scope configurations
@@ -209,7 +208,6 @@ function MakeADGroups {
 function MakeOUFolders {
     $basePath = 'C:\OUFolders'
     New-Item -ItemType Directory -Path $basePath -Force | Out-Null
-    $DriveModifyAccessSMBList = $DriveModifyAccessSMB -split ',\s*'
     $OUList = $OUs -split ',\s*'
 
     for ($i = 0; $i -lt $OUList.Count; $i++) {
@@ -218,8 +216,9 @@ function MakeOUFolders {
         New-Item -ItemType Directory -Path $folderPath -Force | Out-Null
 
         # Share the folder
-        New-SmbShare -Name $OU -Path $folderPath -FullAccess "$DomainName\$DriveFullAccessSMB-SG" -ErrorAction SilentlyContinue
-        New-SmbShare -Name $OU -Path $folderPath -ChangeAccess "$DomainName\$DriveModifyAccessSMBList-SG" -ErrorAction SilentlyContinue
+        New-SmbShare -Name $OU -Path $folderPath `
+        -FullAccess "BUILTIN\Administrators", "SYSTEM", "$DomainName\$DriveFullAccessSMB-SG" `
+        -ChangeAccess "$DomainName\$OU-SG"
 
         # Get the current ACL
         $acl = Get-Acl -Path $folderPath
@@ -231,21 +230,22 @@ function MakeOUFolders {
         }
         Set-Acl -Path $folderPath -AclObject $acl
 
-        # Grant Full Control to Administrators
-        icacls $folderPath /grant "BUILTIN\Administrators:(OI)(CI)F" /T /C
+        # Grant Full Control to SYSTEM and Administrators inheriting the container and object(OI and CI), this is being performed on the subdirectories too and will not stop on errors and display success messages
+        icacls $folderPath /grant "BUILTIN\Administrators:(OI)(CI)F" /T /C /q
+        icacls $folderPath /grant "SYSTEM:(OI)(CI)F" /T /C /q
 
-        # Grant Full Control to the FullAccessSMB group
-        icacls $folderPath /grant "$DomainName\$DriveFullAccessSMB-SG:(OI)(CI)F" /T /C
+        # Grant Full Control to the group in the FullAccessSMB variable inheriting the container and object(OI and CI), this is being performed on the subdirectories too and will not stop on errors and display success messages
+        icacls $folderPath /grant "$DomainName\$DriveFullAccessSMB-SG:(OI)(CI)F" /T /C /q
 
-        # Grant Modify permissions to the OU-specific security group
-        icacls $folderPath /grant "$DomainName\$OU-SG:(OI)(CI)M" /T /C
+        # Grant Modify permissions to the OU-specific security group inheriting the container and object(OI and CI), this is being performed on the subdirectories too and will not stop on errors and display success messages
+        icacls $folderPath /grant "$DomainName\$OU-SG:(OI)(CI)M" /T /C /q
     }
 }
 
 function MakeGPOs {
     $OUList = $OUs -split ',\s*'
     foreach ($OU in $OUList) {
-    New-GPO "$OU-GPO"
+    New-GPO $OU
     }
 }
 
@@ -271,16 +271,21 @@ function MakeDriveMaps {
     for ($i = 0; $i -lt $count; $i++) {
         $OU = $OUList[$i]
         $DriveLetter = $DriveLettersList[$i]
-        $PermissionGroup = $DrivePermissionsList[$i]
+        $sharePath = "\\$ComputerName\$OU"
 
-                # Set NTFS Permissions
-                $acl = Get-Acl -Path "\\$ComputerName\$OU"
-                $accessRule = New-Object System.Security.AccessControl.FileSystemAccessRule($OU, $PermissionGroup, "ContainerInherit,ObjectInherit", "None", "Allow")
-                $acl.SetAccessRule($accessRule)
-                Set-Acl -Path "\\$ComputerName\$OU" -AclObject $acl
-        
-                # Set Share Permissions
-                Grant-SmbShareAccess -Name $OU -AccountName $PermissionGroup -AccessRight Full -Force
+        # Wait for the share to become available
+        $maxRetries = 5
+        $retryCount = 0
+        while (-not (Test-Path -Path $sharePath) -and $retryCount -lt $maxRetries) {
+            Write-Host "Waiting for share $sharePath to become available..."
+            Start-Sleep -Seconds 5
+            $retryCount++
+        }
+
+        if (-not (Test-Path -Path $sharePath)) {
+            Write-Error "Share $sharePath is still not accessible after $maxRetries retries."
+            continue
+        }
 
         # Create the drive mapping
         New-PSDrive -Name $DriveLetter -Root "\\$ComputerName\$OU" -Persist -PSProvider FileSystem -Credential $Credential -Scope Global
