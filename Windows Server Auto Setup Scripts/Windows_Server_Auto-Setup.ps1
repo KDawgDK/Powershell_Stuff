@@ -24,8 +24,6 @@
         $EndRangeIP = "" # Never end with 255 as it will conflict with the broadcast
         $SubnetMask = ""
 
-    $GPODescription = "Dette er en GPO for $OU"
-
 # Create registry key for the progress if it doesn't exist
     $registryPath = 'HKLM:\SYSTEM\ServerScript'
     $valueName = 'Progress'
@@ -45,7 +43,7 @@
         
     }
 ## Functions for the different things
-function BlankOrNotConfig { # Check if the variables are blank or have information, and if they don't, you go through manual configuration that will be saved to a config on C:\ServerConfig.txt
+function BlankOrNotConfig { # Check if the variables are blank or have information, and if they are blank, go through manual configuration that will be saved to a config on C:\ServerConfig.txt
     # Helper function to prompt for user input until a non-empty value is provided
     function PromptForInput {
         param (
@@ -247,7 +245,7 @@ function MakeOUFolders {
 function MakeGPOs {
     $OUList = $OUs -split ',\s*'
     foreach ($OU in $OUList) {
-    New-GPO $OU -Comment $GPODescription
+    New-GPO "$OU-GPO"
     }
 }
 
