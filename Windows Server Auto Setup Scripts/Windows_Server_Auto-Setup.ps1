@@ -257,6 +257,7 @@ function LinkGPOsToOUs {
 }
 
 function MakeDriveMaps {
+    Import-Module GroupPolicy
     $OUList = $OUs -split ',\s*'
     $DriveLettersList = $DriveLetters -split ',\s*'
     $DrivePermissionsList = $DrivePermissions -split ',\s*'
@@ -265,7 +266,7 @@ function MakeDriveMaps {
     # Collect the counts of each list
     $counts = @($OUList.Count, $DriveLettersList.Count, $DrivePermissionsList.Count)
 
-    # Determine the minimum count
+    # Determine the minimum count 
     $count = ($counts | Measure-Object -Minimum).Minimum
 
     for ($i = 0; $i -lt $count; $i++) {
@@ -288,7 +289,9 @@ function MakeDriveMaps {
         }
 
         # Create the drive mapping
-        New-PSDrive -Name $DriveLetter -Root "\\$ComputerName\$OU" -Persist -PSProvider FileSystem -Credential $Credential -Scope Global
+        New-PSDrive -Name $DriveLetter -Root $SharePath -Persist -PSProvider FileSystem -Credential $Credential -Scope Global
+        Set-GPPrefRegistryValue -Name "$OU" -Context User -Key "HKEY_CURRENT_USER\Network\$DriveLetter" `
+        -ValueName "RemotePath" -Type String -Value $SharePath
     }
 }
 
