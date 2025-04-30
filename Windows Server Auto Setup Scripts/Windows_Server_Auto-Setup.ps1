@@ -5,7 +5,7 @@
         $ComputerIP = "192.168.20.6"
         $Prefix = "24" # Change this to whatever you wish it to be
         # Windows Features
-            $WindowsFeatures = 'AD-Domain-Services, DNS' # Separate the Features with ','
+            $WindowsFeatures = 'AD-Domain-Services, DNS, DHCP' # Separate the Features with ','
     # AD Configurations if you do use it
         $DomainName = "it-prods"
         $DomainExtension = "local"
@@ -136,20 +136,26 @@ function BlankOrNotConfig { # Check if the variables are blank or have informati
 
 function ComputerSettings {
     ## New scheduled task that will run the powershell script at logon
-        $actions = (New-ScheduledTaskAction -Execute 'Windows_Server_Auto-Setup.ps1')
-        $trigger = New-ScheduledTaskTrigger -AtLogOn
-        $principal = New-ScheduledTaskPrincipal -UserId "$DomainName\Administrator" -RunLevel Highest
-        $settings = New-ScheduledTaskSettingsSet -RunOnlyIfNetworkAvailable -WakeToRun
-        $task = New-ScheduledTask -Action $actions -Principal $principal -Trigger $trigger -Settings $settings
-        Register-ScheduledTask 'Windows-Server-Setup' -InputObject $task
-    # Gateway
-        $octets = $ComputerIP -split '\.' # Split the IP address into its octets
-        $octets[3] = '1' # Set the last octet to 1 (192.168.20.*1* as an example)
-        $GatewayIP = $octets -join '.' # Reassemble the modified IP address
-    # Setup network interface
-        New-NetIPAddress -IPAddress $ComputerIP -InterfaceIndex $adapter -DefaultGateway $GatewayIP -AddressFamily IPv4 -PrefixLength $Prefix;
-        Set-DnsClientServerAddress -InterfaceIndex $adapter -ServerAddresses $ComputerIP
-    Rename-Computer -NewName $ComputerName # Renames the "computer" with the name specified in the variable or that you manually input at the start
+    # Define the path to the PowerShell script
+    $scriptPath = "e:\Windows_Server_Auto-Setup.ps1"
+
+    # Create the action to run the script
+    $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`""
+
+    # Create a trigger to run the task at logon
+    $trigger = New-ScheduledTaskTrigger -AtLogOn
+
+    # Define the principal (user account) to run the task
+    $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -RunLevel Highest
+
+    # Define additional task settings
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+
+    # Combine everything into a scheduled task
+    $task = New-ScheduledTask -Action $action -Trigger $trigger -Principal $principal -Settings $settings
+
+    # Register the scheduled task
+    Register-ScheduledTask -TaskName "Windows-Server-Setup" -InputObject $task
     # Define the comma-separated list of Windows features
     # Split the string into an array, trimming any leading or trailing whitespace from each feature
     $FeatureList = $WindowsFeatures -split ',\s*'
@@ -158,6 +164,17 @@ function ComputerSettings {
         # Perform your desired action with each feature
         Install-WindowsFeature -Name $Feature -IncludeManagementTools
     }
+        if ($WindowsFeatures -like "*AD-Domain-Services*" -and -not ([string]::IsNullOrEmpty($OUs)) -and -not ([string]::IsNullOrEmpty($DriveLetters))) {
+            Install-Module -Name PolicyFileEditor -Force
+        }
+        # Gateway
+        $octets = $ComputerIP -split '\.' # Split the IP address into its octets
+        $octets[3] = '1' # Set the last octet to 1 (192.168.20.*1* as an example)
+        $GatewayIP = $octets -join '.' # Reassemble the modified IP address
+    # Setup network interface
+        New-NetIPAddress -IPAddress $ComputerIP -InterfaceIndex $adapter -DefaultGateway $GatewayIP -AddressFamily IPv4 -PrefixLength $Prefix;
+        Set-DnsClientServerAddress -InterfaceIndex $adapter -ServerAddresses $ComputerIP
+    Rename-Computer -NewName $ComputerName # Renames the "computer" with the name specified in the variable or that you manually input at the start
     Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 2
     Restart-Computer
 }
@@ -215,6 +232,9 @@ function MakeOUFolders {
         $folderPath = Join-Path -Path $basePath -ChildPath $OU
         New-Item -ItemType Directory -Path $folderPath -Force | Out-Null
 
+        # Add a small delay to ensure the folder is fully created
+        Start-Sleep -Milliseconds 500
+
         # Share the folder
         New-SmbShare -Name $OU -Path $folderPath `
         -FullAccess "BUILTIN\Administrators", "SYSTEM", "$DomainName\$DriveFullAccessSMB-SG" `
@@ -258,6 +278,7 @@ function LinkGPOsToOUs {
 
 function MakeDriveMaps {
     Import-Module GroupPolicy
+    Import-Module PolicyFileEditor
     $OUList = $OUs -split ',\s*'
     $DriveLettersList = $DriveLetters -split ',\s*'
     $DrivePermissionsList = $DrivePermissions -split ',\s*'
@@ -274,24 +295,42 @@ function MakeDriveMaps {
         $DriveLetter = $DriveLettersList[$i]
         $sharePath = "\\$ComputerName\$OU"
 
-        # Wait for the share to become available
-        $maxRetries = 5
-        $retryCount = 0
-        while (-not (Test-Path -Path $sharePath) -and $retryCount -lt $maxRetries) {
-            Write-Host "Waiting for share $sharePath to become available..."
-            Start-Sleep -Seconds 5
-            $retryCount++
-        }
-
-        if (-not (Test-Path -Path $sharePath)) {
-            Write-Error "Share $sharePath is still not accessible after $maxRetries retries."
-            continue
-        }
-
         # Create the drive mapping
-        New-PSDrive -Name $DriveLetter -Root $SharePath -Persist -PSProvider FileSystem -Credential $Credential -Scope Global
-        Set-GPPrefRegistryValue -Name "$OU" -Context User -Key "HKEY_CURRENT_USER\Network\$DriveLetter" `
-        -ValueName "RemotePath" -Type String -Value $SharePath
+        New-PSDrive -Name $DriveLetter -Root $sharePath -Persist -PSProvider FileSystem -Credential $Credential -Scope Global
+        
+        # Get the GPO object
+        $GPO = Get-GPO -Name $OU
+
+        # Path to the GPO's User Configuration Drive Maps XML
+        $GPOPath = "\\$ComputerName\SYSVOL\$DomainName\Policies\{$($GPO.Id)}\User\Preferences\Drives\Drives.xml"
+
+        # Ensure the directory exists
+        $GPOFolder = Split-Path -Path $GPOPath
+        if (-not (Test-Path -Path $GPOFolder)) {
+            New-Item -ItemType Directory -Path $GPOFolder -Force | Out-Null
+        }
+        $Drive = "${DriveLetter}:"
+        $SharePath = "\\$ComputerName\$OU"
+
+        # Create or open the GPO
+        $GPO = Open-NetGPO -Name $OU -Domain "$DomainName.$DomainExtension"
+
+        # Add the drive mapping
+        Add-GPOPreference -GPO $GPO -DriveMap -DriveLetter $Drive -Path $SharePath -Action Create
+
+        # Save the changes
+        Save-NetGPO $GPO
+        #Set-GPPrefRegistryValue -Name "$OU" -Context User -Key "HKEY_CURRENT_USER\Network\$DriveLetter" `
+        #-ValueName "RemotePath" -Type String -Value $SharePath -Action Update
+# Create the XML content for the drive mapping
+<#$DriveMappingXML = @"
+<Drive clsid="{C0F998F0-8B62-11D1-8B8A-00C04FB951F9}" name="$DriveLetter" status="Update">
+    <Properties action="U" thisDrive="1" allDrives="0" userName="" password="" useLetter="$DriveLetter" label="" path="$SharePath" persistent="1" />
+</Drive>
+"@
+
+        # Write the XML content to the GPO
+        Set-Content -Path $GPOPath -Value $DriveMappingXML -Force#>
     }
 }
 
