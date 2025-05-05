@@ -12,8 +12,7 @@
         $OUs = "Supportere, Produktion, Levering" # Separate the OUs with ','
         $ManualUserCreate = "N" # Either 'Y'es or 'N'o to manually create users
         # Drive Maps Configuration
-            $DrivePermissions = "FullControl, Modify" # Separate the permissions with ','
-            $DriveLetters = "S, P, L" # Separate the Letters with ','
+            #$DrivePermissions = "FullControl, Modify" # Separate the permissions with ','
             $DriveFullAccessSMB = "Supportere"
             ## $AccessTo = "Produktion" # Separate who has access to what with ',', use $OUs as a guide since it follows that order you wrote them in
             # $AccessToPerm = "" # Separate who has access to what with ',', use $DrivePermissions as a guide since it follows that order you wrote them in
@@ -164,9 +163,6 @@ function ComputerSettings {
         # Perform your desired action with each feature
         Install-WindowsFeature -Name $Feature -IncludeManagementTools
     }
-        if ($WindowsFeatures -like "*AD-Domain-Services*" -and -not ([string]::IsNullOrEmpty($OUs)) -and -not ([string]::IsNullOrEmpty($DriveLetters))) {
-            Install-Module -Name PolicyFileEditor -Force
-        }
         # Gateway
         $octets = $ComputerIP -split '\.' # Split the IP address into its octets
         $octets[3] = '1' # Set the last octet to 1 (192.168.20.*1* as an example)
@@ -276,70 +272,12 @@ function LinkGPOsToOUs {
     }
 }
 
-function MakeDriveMaps {
-    Import-Module GroupPolicy
-    Import-Module PolicyFileEditor
-    $OUList = $OUs -split ',\s*'
-    $DriveLettersList = $DriveLetters -split ',\s*'
-    $DrivePermissionsList = $DrivePermissions -split ',\s*'
-    $Credential = Get-Credential -Credential "$DomainName\Administrator"
-
-    # Collect the counts of each list
-    $counts = @($OUList.Count, $DriveLettersList.Count, $DrivePermissionsList.Count)
-
-    # Determine the minimum count 
-    $count = ($counts | Measure-Object -Minimum).Minimum
-
-    for ($i = 0; $i -lt $count; $i++) {
-        $OU = $OUList[$i]
-        $DriveLetter = $DriveLettersList[$i]
-        $sharePath = "\\$ComputerName\$OU"
-
-        # Create the drive mapping
-        New-PSDrive -Name $DriveLetter -Root $sharePath -Persist -PSProvider FileSystem -Credential $Credential -Scope Global
-        
-        # Get the GPO object
-        $GPO = Get-GPO -Name $OU
-
-        # Path to the GPO's User Configuration Drive Maps XML
-        $GPOPath = "\\$ComputerName\SYSVOL\$DomainName\Policies\{$($GPO.Id)}\User\Preferences\Drives\Drives.xml"
-
-        # Ensure the directory exists
-        $GPOFolder = Split-Path -Path $GPOPath
-        if (-not (Test-Path -Path $GPOFolder)) {
-            New-Item -ItemType Directory -Path $GPOFolder -Force | Out-Null
-        }
-        $Drive = "${DriveLetter}:"
-        $SharePath = "\\$ComputerName\$OU"
-
-        # Create or open the GPO
-        $GPO = Open-NetGPO -Name $OU -Domain "$DomainName.$DomainExtension"
-
-        # Add the drive mapping
-        Add-GPOPreference -GPO $GPO -DriveMap -DriveLetter $Drive -Path $SharePath -Action Create
-
-        # Save the changes
-        Save-NetGPO $GPO
-        #Set-GPPrefRegistryValue -Name "$OU" -Context User -Key "HKEY_CURRENT_USER\Network\$DriveLetter" `
-        #-ValueName "RemotePath" -Type String -Value $SharePath -Action Update
-# Create the XML content for the drive mapping
-<#$DriveMappingXML = @"
-<Drive clsid="{C0F998F0-8B62-11D1-8B8A-00C04FB951F9}" name="$DriveLetter" status="Update">
-    <Properties action="U" thisDrive="1" allDrives="0" userName="" password="" useLetter="$DriveLetter" label="" path="$SharePath" persistent="1" />
-</Drive>
-"@
-
-        # Write the XML content to the GPO
-        Set-Content -Path $GPOPath -Value $DriveMappingXML -Force#>
-    }
-}
-
 function MakeADUsers {
     $Domain = "$DomainName.$DomainExtension"
     if ($ManualUserCreate -eq "Y") { # Manual User Creation
         $WantedUsers = Read-Host "How many users do you want to make?"
         for ($i=1; $i -le $WantedUsers; $i++) { # Goes up by one after earch user untill the imputted value entered before
-            $SAM_Name = Read-Host "What will your username be?"
+            $SAM_Name = Read-Host "What will their username be?"
             if (Get-ADUser -F { SamAccountName -eq $SAM_Name }) { # If user exist, It'll give a warning
                 Write-Warning "A user account with username $SAM_Name already exists in Active Directory."
             }
@@ -349,7 +287,8 @@ function MakeADUsers {
                 $lastname = Read-Host "What is your last name?"
                 $password = Read-Host "What will your password be?"
                 $email = Read-Host "What is their email?"
-                
+                $path = "ou=$department,dc=$DomainName,dc=$DomainExtension"
+
                 New-ADUser `
                 -SamAccountName $username `
                 -UserPrincipalName "$username@$UPN" `
@@ -359,7 +298,7 @@ function MakeADUsers {
                 -Enabled $True `
                 -DisplayName "$lastname, $firstname" `
                 -Department  $department `
-                -Path $OU `
+                -Path $path `
                 -EmailAddress $email `
                 -AccountPassword (ConvertTo-secureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False
                 
@@ -409,12 +348,11 @@ function MakeADUsers {
             }
         }
     }
+    }
     Unregister-ScheduledTask -TaskName 'Windows-Server-Setup'
     Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 0
-    }
     netsh DHCP add SecurityGroups
 }
-
 
 ## Actual Running of the configuration functions
 
@@ -432,7 +370,6 @@ switch ($Progress) { # Looks for the value and runs the result in the switch sta
         MakeOUFolders;
         MakeGPOs;
         LinkGPOsToOUs;
-        MakeDriveMaps;
         MakeADUsers;
     }
 }
