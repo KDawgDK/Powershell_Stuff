@@ -199,6 +199,10 @@ function DHCPSetup {
     }
 }
 
+function ForwardLookup {
+
+}
+
 function ReverseLookup {
     
 }
@@ -273,6 +277,7 @@ function LinkGPOsToOUs {
 }
 
 function MakeADUsers {
+    $ManualUserCreate = $ManualUserCreate.Trim().ToUpper()
     $Domain = "$DomainName.$DomainExtension"
     if ($ManualUserCreate -eq "Y") { # Manual User Creation
         $WantedUsers = Read-Host "How many users do you want to make?"
@@ -280,8 +285,7 @@ function MakeADUsers {
             $SAM_Name = Read-Host "What will their username be?"
             if (Get-ADUser -F { SamAccountName -eq $SAM_Name }) { # If user exist, It'll give a warning
                 Write-Warning "A user account with username $SAM_Name already exists in Active Directory."
-            }
-            else { # User does not exist and can be created
+            } else { # User does not exist and can be created
                 $department = Read-Host "What department will they be in?"
                 $firstname = Read-Host "What is your first name?"
                 $lastname = Read-Host "What is your last name?"
@@ -308,7 +312,8 @@ function MakeADUsers {
                 # If user is created, show message.
             Write-Host "The user account $username has been created and added to the '$Department' security group." -ForegroundColor Cyan
             }
-    } else { # Automatic CSV User Creation
+    }
+} else { # Automatic CSV User Creation
     $ADUsers = Import-Csv E:\employee-automation.csv -Delimiter ";"
 
         foreach ($User in $ADUsers) {    # Loop through each row containing user details in the CSV file
@@ -319,7 +324,7 @@ function MakeADUsers {
             $lastname   = $User.lastname
             $OU         = $User.ou #This field refers to the OU the user account is to be created in
             $email      = $User.email
-            $Department = $User.group
+            $department = $User.department
             # Checks if the user already exists in the Active Directory
             if (Get-ADUser -F { SamAccountName -eq $username }) {
                 # If user does exist, give a warning
@@ -336,18 +341,17 @@ function MakeADUsers {
                     -Surname $lastname `
                     -Enabled $True `
                     -DisplayName "$lastname, $firstname" `
-                    -Department  $Department `
+                    -Department  $department `
                     -Path $OU `
                     -EmailAddress $email `
                     -AccountPassword (ConvertTo-secureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False
                 Add-ADGroupMember `
-                    -Identity $Department `
+                    -Identity $department `
                     -Members $username
                     # If user is created, show message.
-                Write-Host "The user account $username has been created and added to the '$Department' security group." -ForegroundColor Cyan
+                Write-Host "The user account $username has been created and added to the '$department' security group." -ForegroundColor Cyan
             }
         }
-    }
     }
     Unregister-ScheduledTask -TaskName 'Windows-Server-Setup'
     Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 0
@@ -365,6 +369,8 @@ switch ($Progress) { # Looks for the value and runs the result in the switch sta
     2 { ForestSetup }
     3 { 
         DHCPSetup;
+        #ForwardLookup;
+        #ReverseLookup;
         MakeOUs;
         MakeADGroups;
         MakeOUFolders;
