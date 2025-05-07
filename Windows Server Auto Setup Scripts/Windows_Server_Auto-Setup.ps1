@@ -176,8 +176,8 @@ function ComputerSettings {
 }
 
 function ForestSetup {
-    Install-ADDSForest -DomainName "$DomainName.$DomainExtension" -InstallDNS;
-    Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 3
+    Install-ADDSForest -DomainName "$DomainName.$DomainExtension";
+    Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 3;
 }
 
 function DHCPSetup {
@@ -199,12 +199,11 @@ function DHCPSetup {
     }
 }
 
-function ForwardLookup {
-
-}
-
-function ReverseLookup {
-    
+function LookupZones {
+    $octets = $ComputerIP -split '\.'
+    Add-DnsServerPrimaryZone -Name "$DomainName.$DomainExtension" -ZoneFile "$DomainName.dns" -DynamicUpdate None
+    Add-DnsServerResourceRecordA -Name "www" -ZoneName "$DomainName.$DomainExtension" -IPv4Address $IPAddress -TimeToLive 00:01:00
+    Add-DnsServerResourceRecordPtr -Name "$octets[3]" -ZoneName "$octets[2].$octets[1].$octets[0].in-addr.arpa" -PtrDomainName "$ComputerName.$DomainName.$DomainExtension"
 }
 
 function MakeOUs {
@@ -307,10 +306,10 @@ function MakeADUsers {
                 -AccountPassword (ConvertTo-secureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False
                 
                 Add-ADGroupMember `
-                -Identity $Department `
+                -Identity "$Department-SG" `
                 -Members $username
                 # If user is created, show message.
-            Write-Host "The user account $username has been created and added to the '$Department' security group." -ForegroundColor Cyan
+            Write-Host "The user account $username has been created and added to the '$Department-SG' security group." -ForegroundColor Cyan
             }
     }
 } else { # Automatic CSV User Creation
@@ -346,14 +345,14 @@ function MakeADUsers {
                     -EmailAddress $email `
                     -AccountPassword (ConvertTo-secureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False
                 Add-ADGroupMember `
-                    -Identity $department `
+                    -Identity "$department-SG" `
                     -Members $username
                     # If user is created, show message.
-                Write-Host "The user account $username has been created and added to the '$department' security group." -ForegroundColor Cyan
+                Write-Host "The user account $username has been created and added to the '$department-SG' security group." -ForegroundColor Cyan
             }
         }
     }
-    Unregister-ScheduledTask -TaskName 'Windows-Server-Setup'
+    #Unregister-ScheduledTask -TaskName 'Windows-Server-Setup'
     Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 0
     netsh DHCP add SecurityGroups
 }
