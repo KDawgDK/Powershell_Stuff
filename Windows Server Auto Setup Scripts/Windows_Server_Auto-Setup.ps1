@@ -7,20 +7,17 @@
         # Windows Features
             $WindowsFeatures = 'AD-Domain-Services, DNS, DHCP' # Separate the Features with ','
     # AD Configurations if you do use it
-        $DomainName = "it-prods"
-        $DomainExtension = "local"
+        $DomainName = "it-prods"    # {DomainName}.{DomainExtension}
+        $DomainExtension = "local"  
         $OUs = "Supportere, Produktion, Levering" # Separate the OUs with ','
         $ManualUserCreate = "N" # Either 'Y'es or 'N'o to manually create users
-        # Drive Maps Configuration
-            #$DrivePermissions = "FullControl, Modify" # Separate the permissions with ','
-            $DriveFullAccessSMB = "Supportere"
-            ## $AccessTo = "Produktion" # Separate who has access to what with ',', use $OUs as a guide since it follows that order you wrote them in
-            # $AccessToPerm = "" # Separate who has access to what with ',', use $DrivePermissions as a guide since it follows that order you wrote them in
+        $DriveFullAccessSMB = "Supportere" # What group has access to a drive, which is typically admins and the it supporter group
     # DHCP Scope configurations
         $ScopeName = "$Domain-DHCPScope"
-        $StartRangeIP = "" # Never start with 0 as it will comflict with the ScopeID
-        $EndRangeIP = "" # Never end with 255 as it will conflict with the broadcast
-        $SubnetMask = ""
+        $StartRangeIP = "192.168.20.20" # Never start with 0 as it will comflict with the ScopeID
+        $EndRangeIP = "192.168.20.254" # Never end with 255 as it will conflict with the broadcast
+        $SubnetMask = "255.255.255.0"
+        $DNSservers = "1.1.1.1,1.0.0.1" # Add the DNS servers you want to use, separate with ',' if you have more than one
 
 # Create registry key for the progress if it doesn't exist
     $registryPath = 'HKLM:\SYSTEM\ServerScript'
@@ -135,26 +132,26 @@ function BlankOrNotConfig { # Check if the variables are blank or have informati
 
 function ComputerSettings {
     ## New scheduled task that will run the powershell script at logon
-    # Define the path to the PowerShell script
-    $scriptPath = "e:\Windows_Server_Auto-Setup.ps1"
+        # Define the path to the PowerShell script
+        $scriptPath = "e:\Windows_Server_Auto-Setup.ps1"
 
-    # Create the action to run the script
-    $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`""
+        # Create the action to run the script
+        $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`""
 
-    # Create a trigger to run the task at logon
-    $trigger = New-ScheduledTaskTrigger -AtLogOn
+        # Create a trigger to run the task at logon
+        $trigger = New-ScheduledTaskTrigger -AtLogOn
 
-    # Define the principal (user account) to run the task
-    $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -RunLevel Highest
+        # Define the principal (user account) to run the task
+        $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -RunLevel Highest
 
-    # Define additional task settings
-    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+        # Define additional task settings
+        $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
 
-    # Combine everything into a scheduled task
-    $task = New-ScheduledTask -Action $action -Trigger $trigger -Principal $principal -Settings $settings
+        # Combine everything into a scheduled task
+        $task = New-ScheduledTask -Action $action -Trigger $trigger -Principal $principal -Settings $settings
 
-    # Register the scheduled task
-    Register-ScheduledTask -TaskName "Windows-Server-Setup" -InputObject $task
+        # Register the scheduled task
+        Register-ScheduledTask -TaskName "Windows-Server-Setup" -InputObject $task
     # Define the comma-separated list of Windows features
     # Split the string into an array, trimming any leading or trailing whitespace from each feature
     $FeatureList = $WindowsFeatures -split ',\s*'
@@ -187,23 +184,33 @@ function DHCPSetup {
         }
         # Scope ID
             $octets = $ComputerIP -split '\.' # Split the IP address into its octets
-            $octets[3] = '0' # Set the last octet to 0 (192.168.20.*0* as an example)
+            $octets[3] = '0' # Sets the last octet to 0 (192.168.20.*0* as an example)
             $ScopeID = $octets -join '.' # Reassemble the modified IP address
-        Restart-Service dhcpserver
         Add-DhcpServerv4Scope -name $ScopeName -StartRange $StartRangeIP -EndRange $EndRangeIP -SubnetMask $SubnetMask -State Active
         Set-DhcpServerv4OptionValue -OptionID 3 -Value $StartRangeIP -ScopeID $ScopeID -ComputerName $ComputerName
         Set-DhcpServerv4OptionValue -DnsDomain "$DomainName.$DomainExtension" -DnsServer $ComputerIP
-        Add-DhcpServerInDC -DnsName "$ComputerName.$DomainName.$DomainExtension" -IPAddress $ComputerIP
         $Credential = Get-Credential -Credential "$DomainName\Administrator"
         Set-DhcpServerDnsCredential -Credential $Credential -ComputerName $ComputerName
+        Add-DhcpServerInDC -DnsName "$ComputerName.$DomainName.$DomainExtension" -IPAddress $ComputerIP
+        Restart-Service dhcpserver
+        Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\ServerManager\Roles\12' -Name ConfigurationState -Value 2 # Needed for it to be marked as configured in the server manager
+        Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 4
+        Restart-Computer
     }
 }
 
 function LookupZones {
     $octets = $ComputerIP -split '\.'
-    Add-DnsServerPrimaryZone -Name "$DomainName.$DomainExtension" -ZoneFile "$DomainName.dns" -DynamicUpdate None
+    $octets[3] = '0' # Sets the last octet to 0 (192.168.20.*0* as an example)
+    $NetworkID = $octets -join '.' # Reassemble the modified IP address
+    $DNSserverList = $DNSservers -split ',\s*'
+    Add-DnsServerPrimaryZone -Name "$DomainName.$DomainExtension" -NetworkID $NetworkID -ZoneFile "$DomainName.dns" -DynamicUpdate None
     Add-DnsServerResourceRecordA -Name "www" -ZoneName "$DomainName.$DomainExtension" -IPv4Address $IPAddress -TimeToLive 00:01:00
-    Add-DnsServerResourceRecordPtr -Name "$octets[3]" -ZoneName "$octets[2].$octets[1].$octets[0].in-addr.arpa" -PtrDomainName "$ComputerName.$DomainName.$DomainExtension"
+    Add-DnsServerResourceRecordPtr -Name $octets[3] -NetworkID "$NetworkID/24" -PtrDomainName "$ComputerName.$DomainName.$DomainExtension"
+    Add-DnsServerPrimaryZone -NetworkID "$NetworkID/24" -ReplicationScope "Forest"
+    foreach ($DNSserver in $DNSserverList) {
+        Add-DnsServerForwarder -IPAddress $DNSserver
+    }
 }
 
 function MakeOUs {
@@ -363,18 +370,23 @@ $Progress = Get-ItemPropertyValue 'HKLM:\SYSTEM\ServerScript' -Name "Progress"
 
 switch ($Progress) { # Looks for the value and runs the result in the switch statement
     0 { Menu }
-    1 { BlankOrNotConfig;
-        ComputerSettings  }
-    2 { ForestSetup }
+    1 { 
+        BlankOrNotConfig;
+        ComputerSettings;
+    }
+    2 { 
+        ForestSetup;
+    }
     3 { 
         DHCPSetup;
-        #ForwardLookup;
-        #ReverseLookup;
-        MakeOUs;
-        MakeADGroups;
-        MakeOUFolders;
-        MakeGPOs;
-        LinkGPOsToOUs;
-        MakeADUsers;
+    }
+    4 {
+        LookupZones;
+        #MakeOUs;
+        #MakeADGroups;
+        #MakeOUFolders;
+        #MakeGPOs;
+        #LinkGPOsToOUs;
+        #MakeADUsers;
     }
 }
