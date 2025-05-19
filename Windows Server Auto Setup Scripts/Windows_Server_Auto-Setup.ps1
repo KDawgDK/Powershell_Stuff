@@ -1,44 +1,26 @@
 ## Variables for the configuration
     # Computer Settings
-        $adapter = (Get-NetAdapter -Physical | Select-Object -First 1).ifIndex
-        $ComputerName = "DCServ"
-        $ComputerIP = "192.168.20.6"
-        $Prefix = "24" # Change this to whatever you wish it to be
+        $adapter = (Get-NetAdapter -Physical | Select-Object -First 1).ifIndex # Do not touch this, it will automatically get the first network adapter
+        $ComputerName = "" # Change this to whatever you wish it to be
+        $ComputerIP = "" # Change this to whatever you wish it to be between 0 to 255 in each octet
         # Windows Features
-            $WindowsFeatures = 'AD-Domain-Services, DNS, DHCP' # Separate the Features with ','
+            $WindowsFeatures = '' # Separate the Features with ','
     # AD Configurations if you do use it
-        $DomainName = "it-prods"    # {DomainName}.{DomainExtension}
-        $DomainExtension = "local"  
-        $OUs = "Supportere, Produktion, Levering" # Separate the OUs with ','
-        $ManualUserCreate = "N" # Either 'Y'es or 'N'o to manually create users
-        $DriveFullAccessSMB = "Supportere" # What group has access to a drive, which is typically admins and the it supporter group
-    # DHCP Scope configurations
-        $ScopeName = "$Domain-DHCPScope"
-        $StartRangeIP = "192.168.20.20" # Never start with 0 as it will comflict with the ScopeID
-        $EndRangeIP = "192.168.20.254" # Never end with 255 as it will conflict with the broadcast
-        $SubnetMask = "255.255.255.0"
-        $DNSservers = "1.1.1.1,1.0.0.1" # Add the DNS servers you want to use, separate with ',' if you have more than one
+        $DomainName = "" # Change this to whatever you wish it to be
+        $DomainExtension = "" # Change this to whatever you wish it to be
+        $OUs = "" # Separate the OUs with ','
+        $ManualUserCreate = "" # Either 'Y'es or 'N'o to manually create users
+        $DriveFullAccessSMB = "" # What group has access to a drive, which is typically admins and the it supporter group
+    # DHCP Scope configurations if you do use it
+        $ScopeName = "" # You can change this to whatever you want, but it will be set to the domain name by default(e.g., "$Domain-DHCPScope")
+        $StartRangeIP = "" # Never start with 0 as it will conflict with the ScopeID
+        $EndRangeIP = "" # Never end with 255 as it will conflict with the broadcast
+        $SubnetMask = "" # Change this to whatever you wish it to be between 0 to 255 in each octet
+        $Prefix = "" # Change this to whatever you wish it to be between 0-32, make sure it corrosponds to the subnet mask you made
+        $DNSServers = "" # Change this to whatever you wish it to be between 0 to 255 in each octet, usually you would use googles dns server(8.8.8.8,8.8.4.4) or cloudflares (1.1.1.1,1.1.0.0)
 
-# Create registry key for the progress if it doesn't exist
-    $registryPath = 'HKLM:\SYSTEM\ServerScript'
-    $valueName = 'Progress'
-    $valueData = 1
-    
-    # Check if the registry key exists; if not, create it
-    if (-not (Test-Path -Path $registryPath)) {
-        New-Item -Path $registryPath -Force | Out-Null
-        Write-Host "Created registry key: $registryPath"
-    }
-    
-    # Check if the DWORD value exists; if not, create it
-    if (-not (Get-ItemProperty -Path $registryPath -Name $valueName -ErrorAction SilentlyContinue)) {
-        New-ItemProperty -Path $registryPath -Name $valueName -Value $valueData -PropertyType DWORD -Force | Out-Null
-        Write-Host "Created DWORD value '$valueName' with data '$valueData' in '$registryPath'."
-    } else {
-        
-    }
 ## Functions for the different things
-function BlankOrNotConfig { # Check if the variables are blank or have information, and if they are blank, go through manual configuration that will be saved to a config on C:\ServerConfig.txt
+function BlankOrNotConfig {
     # Helper function to prompt for user input until a non-empty value is provided
     function PromptForInput {
         param (
@@ -53,42 +35,83 @@ function BlankOrNotConfig { # Check if the variables are blank or have informati
         return $inputValue
     }
 
-    # Check if all relevant variables are empty
-    if (-not ($ComputerName -or $ComputerIP -or $Prefix -or $WindowsFeatures -or $DomainName -or $DomainExtension -or $OUs -or $ScopeName -or $StartRangeIP -or $EndRangeIP)) {
-        # Define the configuration file path
-        $configFilePath = "C:\ServerConfig.txt"
+    # Define the configuration file path
+    $configFilePath = "C:\ServerConfig.txt"
 
-        # Check if the configuration file already exists
-        if (-not (Test-Path -Path $configFilePath)) {
-            # Create the configuration file
-            New-Item -ItemType File -Path $configFilePath -Force | Out-Null
+    # Check if the configuration file exists
+    if (Test-Path -Path $configFilePath) {
+        # Read the configuration file and map its contents to variables
+        $configContent = Get-Content -Path $configFilePath
+        foreach ($line in $configContent) {
+            if ($line -match "^(.*?)\s*=\s*(.*)$") {
+                $key = $matches[1].Trim()
+                $value = $matches[2].Trim()
+                switch ($key) { # all of the variables need to be "$global:variableName" to be used in the other functions
+                    # Computer Settings
+                    "Computer Name" { $global:ComputerName = $value }
+                    "Computer IP" { $global:ComputerIP = $value }
+                    "Windows Features" { $global:WindowsFeatures = $value }
+                    "Subnet Mask" { $global:SubnetMask = $value }
+                    "IP Prefix" { $global:Prefix = $value }
+                    # ADDS
+                    "Domain Name" { $global:DomainName = $value }
+                    "Domain Extension" { $global:DomainExtension = $value }
+                    "Manual User Creation" { $global:ManualUserCreate = $value }
+                    "OUs" { $global:OUs = $value }
+                    "Drive Full Access SMB" { $global:DriveFullAccessSMB = $value }
+                    # DHCP
+                    "Scope Name" { $global:ScopeName = $value }
+                    "Start Range" { $global:StartRangeIP = $value }
+                    "End Range" { $global:EndRangeIP = $value }
+                    "DNS Servers" { $global:DNSServers = $value }
+                }
+            }
         }
+    } else {
+        # If the configuration file doesn't exist, create it
+        New-Item -ItemType File -Path $configFilePath -Force | Out-Null
+    }
 
-        # Prompt for Computer Name if not set
-        if ([string]::IsNullOrEmpty($ComputerName)) {
-            $ComputerName = Prompt-ForInput -PromptMessage "What do you want to call your server?"
-            Add-Content -Path $configFilePath -Value "Computer Name = $ComputerName"
+    # Prompt for missing variables and save them to the configuration file
+    if ([string]::IsNullOrEmpty($ComputerName)) {
+        $ComputerName = PromptForInput -PromptMessage "What do you want to call your server?"
+        Add-Content -Path $configFilePath -Value "Computer Name = $ComputerName"
+    }
+
+    # Prompt for the missing Windows Features
+    if ([string]::IsNullOrEmpty($WindowsFeatures)) {
+        $WindowsFeatures = PromptForInput -PromptMessage "What Windows Features do you want to install? Separate with ',' (e.g., 'AD-Domain-Services, DNS, DHCP')"
+        Add-Content -Path $configFilePath -Value "Windows Features = $WindowsFeatures"
+    }
+            if ([string]::IsNullOrEmpty($DNSServers)) {
+            $DNSServers = PromptForInput -PromptMessage "Enter DNS servers (e.g., '8.8.8.8, 8.8.4.4')"
+            Add-Content -Path $configFilePath -Value "DNS Servers = $DNSServers"
         }
+    # Prompt for the missing IP Address for the server
+    if ([string]::IsNullOrEmpty($ComputerIP)) {
+        $ComputerIP = PromptForInput -PromptMessage "What IPv4 Address do you want your server to have?"
+        Add-Content -Path $configFilePath -Value "Computer IP = $ComputerIP"
+    }
+    # Prompt for the missing subnet mask
+        if ([string]::IsNullOrEmpty($SubnetMask)) {
+        $SubnetMask = PromptForInput -PromptMessage "Please enter a subnet mask"
+        Add-Content -Path $configFilePath -Value "Subnet Mask = $SubnetMask"
+    }
+    if ([string]::IsNullOrEmpty($Prefix)) {
+        $Prefix = PromptForInput -PromptMessage "What do you want the subnet prefix to be?"
+        Add-Content -Path $configFilePath -Value "IP Prefix = $Prefix"
+    }
 
-        # Prompt for Computer IP if not set
-        if ([string]::IsNullOrEmpty($ComputerIP)) {
-            $ComputerIP = Prompt-ForInput -PromptMessage "What IPv4 Address do you want your server to have?"
-            Add-Content -Path $configFilePath -Value "Computer IP = $ComputerIP"
-        }
-
-        # Prompt for Subnet Prefix if not set
-        if ([string]::IsNullOrEmpty($Prefix)) {
-            $Prefix = Prompt-ForInput -PromptMessage "What do you want the subnet prefix to be?"
-            Add-Content -Path $configFilePath -Value "IP Prefix = $Prefix"
-        }
-
-        # Check if Windows Features include AD-Domain-Services
-        if ($WindowsFeatures -like "*AD-Domain-Services*") {
-            # Prompt for Domain Name and Extension if not set
+    # Prompt for the missing manual user creation answer
+    if ([string]::IsNullOrEmpty($ManualUserCreate)) {
+        $ManualUserCreate = PromptForInput -PromptMessage "Do you want to create users manually? (Y/N)"
+        Add-Content -Path $configFilePath -Value "Manual User Creation = $ManualUserCreate"
+    }
+    if ($WindowsFeatures -like "*AD-Domain-Services*") {
             if ([string]::IsNullOrEmpty($DomainName) -or [string]::IsNullOrEmpty($DomainExtension)) {
-                $FullDomain = Prompt-ForInput -PromptMessage "Enter the domain (e.g., 'name.extension'):"
+                $FullDomain = PromptForInput -PromptMessage "Enter the domain (e.g., 'name.extension')"
                 $DomainParts = $FullDomain -split '\.'
-                if ($DomainParts.Count -ge 2) {
+                if ($DomainParts.Count -ge 2 -and $DomainParts.Count -le 2) {
                     $DomainName = $DomainParts[0]
                     $DomainExtension = $DomainParts[1]
                     Add-Content -Path $configFilePath -Value "Domain Name = $DomainName"
@@ -96,38 +119,50 @@ function BlankOrNotConfig { # Check if the variables are blank or have informati
                 } else {
                     Write-Host "Invalid domain format. Please enter in 'name.extension' format."
                 }
-            }
 
-            # Prompt for Organizational Units if not set
-            if ([string]::IsNullOrEmpty($OUs)) {
-                $OUs = Prompt-ForInput -PromptMessage "Enter Organizational Units (separate with commas):"
-                Add-Content -Path $configFilePath -Value "OUs = $OUs"
-            }
-        }
-
-        # Check if Windows Features include DHCP
-        if ($WindowsFeatures -like "*DHCP*") {
-            # Prompt for Scope Name if not set
-            if ([string]::IsNullOrEmpty($ScopeName)) {
-                $ScopeName = Read-Host "Enter the scope name (default: ${DomainName}-DHCP_Scope)"
-                if (-not [string]::IsNullOrEmpty($ScopeName)) {
-                    Add-Content -Path $configFilePath -Value "Scope Name = $ScopeName"
+                if ([string]::IsNullOrEmpty($OUs)) {
+                    $OUs = PromptForInput -PromptMessage "Enter Organizational Units (separate with commas)"
+                    Add-Content -Path $configFilePath -Value "OUs = $OUs"
+                }
+                if ([string]::IsNullOrEmpty($DriveFullAccessSMB)) {
+                    $DriveFullAccessSMB = PromptForInput -PromptMessage "What group has full access to drives?"
+                    Add-Content -Path $configFilePath -Value "Drive Full Access SMB = $DriveFullAccessSMB"
                 }
             }
 
-            # Prompt for Start Range IP if not set
-            if ([string]::IsNullOrEmpty($StartRangeIP)) {
-                $StartRangeIP = Prompt-ForInput -PromptMessage "Enter the start of the IP range:"
-                Add-Content -Path $configFilePath -Value "Start Range = $StartRangeIP"
-            }
 
-            # Prompt for End Range IP if not set
-            if ([string]::IsNullOrEmpty($EndRangeIP)) {
-                $EndRangeIP = Prompt-ForInput -PromptMessage "Enter the end of the IP range:"
-                Add-Content -Path $configFilePath -Value "End Range = $EndRangeIP"
-            }
+        if ([string]::IsNullOrEmpty($ManualUserCreate)) {
+            $ManualUserCreate = PromptForInput -PromptMessage "Do you want to create users manually? (Y/N)"
+            Add-Content -Path $configFilePath -Value "Manual User Creation = $ManualUserCreate"
         }
     }
+        if ($WindowsFeatures -like "*DNS*") {
+            if ([string]::IsNullOrEmpty($DNSServers)) {
+                $DNSServers = PromptForInput -PromptMessage "Enter DNS servers (e.g., '8.8.8.8, 8.8.4.4')"
+                Add-Content -Path $configFilePath -Value "DNS Servers = $DNSServers"
+            }
+        }
+
+    if ($WindowsFeatures -like "*DHCP*") {
+        if ([string]::IsNullOrEmpty($ScopeName)) {
+            $ScopeName = Read-Host "Enter the scope name (default: ${DomainName}-DHCP_Scope)"
+            if (-not [string]::IsNullOrEmpty($ScopeName)) {
+                Add-Content -Path $configFilePath -Value "Scope Name = $ScopeName"
+            }
+        }
+
+        if ([string]::IsNullOrEmpty($StartRangeIP)) {
+            $StartRangeIP = PromptForInput -PromptMessage "Enter the start of the IP range"
+            Add-Content -Path $configFilePath -Value "Start Range = $StartRangeIP"
+        }
+
+        if ([string]::IsNullOrEmpty($EndRangeIP)) {
+            $EndRangeIP = PromptForInput -PromptMessage "Enter the end of the IP range"
+            Add-Content -Path $configFilePath -Value "End Range = $EndRangeIP"
+        }
+    }
+
+
 }
 
 function ComputerSettings {
@@ -173,8 +208,10 @@ function ComputerSettings {
 }
 
 function ForestSetup {
+    if ($WindowsFeatures -like "*AD-Domain-Services*") {
     Install-ADDSForest -DomainName "$DomainName.$DomainExtension";
     Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 3;
+    }
 }
 
 function DHCPSetup {
@@ -199,18 +236,12 @@ function DHCPSetup {
     }
 }
 
-function LookupZones {
+function ReverseLookup {
     $octets = $ComputerIP -split '\.'
     $octets[3] = '0' # Sets the last octet to 0 (192.168.20.*0* as an example)
     $NetworkID = $octets -join '.' # Reassemble the modified IP address
-    $DNSserverList = $DNSservers -split ',\s*'
-    Add-DnsServerPrimaryZone -Name "$DomainName.$DomainExtension" -NetworkID $NetworkID -ZoneFile "$DomainName.dns" -DynamicUpdate None
-    Add-DnsServerResourceRecordA -Name "www" -ZoneName "$DomainName.$DomainExtension" -IPv4Address $IPAddress -TimeToLive 00:01:00
-    Add-DnsServerResourceRecordPtr -Name $octets[3] -NetworkID "$NetworkID/24" -PtrDomainName "$ComputerName.$DomainName.$DomainExtension"
-    Add-DnsServerPrimaryZone -NetworkID "$NetworkID/24" -ReplicationScope "Forest"
-    foreach ($DNSserver in $DNSserverList) {
-        Add-DnsServerForwarder -IPAddress $DNSserver
-    }
+    Add-DnsServerPrimaryZone -NetworkID "$NetworkID/$Prefix" -ReplicationScope "Forest"
+    Add-DnsServerConditionalForwarderZone -Name "$DomainName.$DomainExtension" -MasterServers $DNSServers -PassThru
 }
 
 function MakeOUs {
@@ -359,19 +390,43 @@ function MakeADUsers {
             }
         }
     }
-    #Unregister-ScheduledTask -TaskName 'Windows-Server-Setup'
+    Unregister-ScheduledTask -TaskName 'Windows-Server-Setup'
     Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 0
+    if (Test-Path -Path $configFilePath) {
+        Remove-Item -Path $configFilePath -Force
+    }
     netsh DHCP add SecurityGroups
 }
 
 ## Actual Running of the configuration functions
-
+$configFilePath = "C:\ServerConfig.txt"
 $Progress = Get-ItemPropertyValue 'HKLM:\SYSTEM\ServerScript' -Name "Progress"
 
+if ($Progress -eq $null -and (Test-Path -Path $configFilePath)) {
+    # If the registry value doesn't exist, run the function twice
+    BlankOrNotConfig;
+    BlankOrNotConfig;  
+} else {
+    # If the registry value exists, run the function once
+    BlankOrNotConfig;
+}
+
+# Create registry key for the progress if it doesn't exist
+    if (-not (Test-Path -Path 'HKLM:\SYSTEM\ServerScript')) {
+        New-Item -Path 'HKLM:\SYSTEM\ServerScript' -Force | Out-Null
+    }
+    
+    # Check if the DWORD value exists; if not, create it
+    if (-not (Get-ItemProperty -Path 'HKLM:\SYSTEM\ServerScript' -Name 'Progress' -ErrorAction SilentlyContinue)) {
+        New-ItemProperty -Path 'HKLM:\SYSTEM\ServerScript' -Name 'Progress' -Value 1 -PropertyType DWORD -Force | Out-Null
+    }
+
+
 switch ($Progress) { # Looks for the value and runs the result in the switch statement
-    0 { Menu }
+    0 { 
+        Menu 
+    }
     1 { 
-        BlankOrNotConfig;
         ComputerSettings;
     }
     2 { 
@@ -381,12 +436,12 @@ switch ($Progress) { # Looks for the value and runs the result in the switch sta
         DHCPSetup;
     }
     4 {
-        LookupZones;
-        #MakeOUs;
-        #MakeADGroups;
-        #MakeOUFolders;
-        #MakeGPOs;
-        #LinkGPOsToOUs;
-        #MakeADUsers;
+        ReverseLookup;
+        MakeOUs;
+        MakeADGroups;
+        MakeOUFolders;
+        MakeGPOs;
+        LinkGPOsToOUs;
+        MakeADUsers;
     }
 }
