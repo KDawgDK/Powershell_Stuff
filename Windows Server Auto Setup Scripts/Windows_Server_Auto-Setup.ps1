@@ -20,8 +20,8 @@
         $global:DNSServers = "1.1.1.1, 1.0.0.1" # Change this to whatever you wish it to be between 0 to 255 in each octet, usually you would use googles dns server(8.8.8.8,8.8.4.4) or cloudflares (1.1.1.1,1.1.0.0)
     #Printer Stuff
         $global:PrinterName = "HP LaserJet M209dwe" # Name for the printer
-        $global:PrinterDriver = "HP Universal Driver" # Change this to the driver you want to use, look for the printer driver name inside of the INF file you are using
-        $global:PrinterDriverINFPath = "E:\HPEasyStart-16.2.4-LJM207-M212_U_52_3_4930_Webpack - Drivers\hpypclms32_v4.inf" # Path to the driver folder, this is used to add the printer driver
+        $global:PrinterDriver = "HP LaserJet M207-M212 PCLm-S" # Change this to the driver you want to use, look for the printer driver name inside of the INF file you are using
+        $global:PrinterDriverINFPath = "E:\HPEasyStart-16.2.4-LJM207-M212_U_52_3_4930_Webpack - Drivers" # Path to the driver folder, this is used to add the printer driver
         $global:PrinterIP = "172.16.1.4" # Change this to whatever you wish it to be between 0 to 255 in each 4 octets
 
 ## Functions for the different things
@@ -71,7 +71,8 @@ function BlankOrNotConfig {
                     "DNS Servers" { $global:DNSServers = $value }
                     # Printer Stuff
                     "Printer Name" { $global:PrinterName = $value }
-                    "Printer INF Path" { $global:PrinterDriverPath = $value }
+                    "Printer Driver" { $global:PrinterDriver = $value }
+                    "Printer Driver INF Path" { $global:PrinterDriverINFPath = $value }
                     "Printer IP" { $global:PrinterIP = $value }
                 }
             }
@@ -169,9 +170,13 @@ function BlankOrNotConfig {
             $global:PrinterName = PromptForInput -PromptMessage "Enter the printer name"
             Add-Content -Path $configFilePath -Value "Printer Name = $global:PrinterName"
         }
+        if ([string]::IsNullOrEmpty($global:PrinterDriver)) {
+            $global:PrinterDriver = PromptForInput -PromptMessage "Enter the printer driver name"
+            Add-Content -Path $configFilePath -Value "Printer Driver = $global:PrinterDriver"
+        }
         if ([string]::IsNullOrEmpty($global:PrinterDriverPath)) {
             $global:PrinterDriverPath = PromptForInput -PromptMessage "Enther the path to the printer driver INF File"
-            Add-Content -Path $configFilePath -Value "Printer INF Path = $global:PrinterDriverPath"
+            Add-Content -Path $configFilePath -Value "Printer INF Path = $global:PrinterDriverINFPath"
         }
         if ([string]::IsNullOrEmpty($global:PrinterIP)) {
             $global:PrinterIP = PromptForInput -PromptMessage "Enter the Printer IP Address"
@@ -287,172 +292,189 @@ function DHCPSetup {
 }
 
 function ReverseLookup {
-    $octets = $global:ComputerIP -split '\.'
-    $octets[3] = '0' # Sets the last octet to 0 (192.168.20.*0* as an example)
-    $NetworkID = $octets -join '.' # Reassemble the modified IP address
-    Add-DnsServerPrimaryZone -NetworkID "$NetworkID/$global:Prefix" -ReplicationScope "Forest"
-    Add-DnsServerConditionalForwarderZone -Name "$global:DomainName.$global:DomainExtension" -MasterServers $global:DNSServers -PassThru
+    if ($global:WindowsFeatures -Like "*DNS*") {
+        $octets = $global:ComputerIP -split '\.'
+        $octets[3] = '0' # Sets the last octet to 0 (192.168.20.*0* as an example)
+        $NetworkID = $octets -join '.' # Reassemble the modified IP address
+        Add-DnsServerPrimaryZone -NetworkID "$NetworkID/$global:Prefix" -ReplicationScope "Forest"
+        Add-DnsServerConditionalForwarderZone -Name "$global:DomainName.$global:DomainExtension" -MasterServers $global:DNSServers -PassThru
+    }
 }
 
 function MakeOUs {
-    $OUList = $global:OUs -split ',\s*'
-    foreach ($OU in $OUList) {
-        New-ADOrganizationalUnit -Name $OU -Path "DC=$global:DomainName,DC=$global:DomainExtension"
+    if ($global:WindowsFeatures -Like "*AD-Domain-Services*") {
+        $OUList = $global:OUs -split ',\s*'
+        foreach ($OU in $OUList) {
+            New-ADOrganizationalUnit -Name $OU -Path "DC=$global:DomainName,DC=$global:DomainExtension"
+        }
     }
 }
 
 function MakeADGroups {
-    $OUList = $global:OUs -split ',\s*'
-    foreach ($OU in $OUList) {
-        # Perform your desired action with each OU
-        New-ADGroup -Name "$OU-SG" -GroupCategory Security -GroupScope Global -DisplayName "$OU Afdeling" -Path "OU=$OU,DC=$global:DomainName,DC=$global:DomainExtension"
+    if ($global:WindowsFeatures -Like "*AD-Domain-Services*") {
+        $OUList = $global:OUs -split ',\s*'
+        foreach ($OU in $OUList) {
+            # Perform your desired action with each OU
+            New-ADGroup -Name "$OU-SG" -GroupCategory Security -GroupScope Global -DisplayName "$OU Afdeling" -Path "OU=$OU,DC=$global:DomainName,DC=$global:DomainExtension"
+        }
     }
 }
 
 function MakeOUFolders {
-    $basePath = 'C:\OUFolders'
-    New-Item -ItemType Directory -Path $basePath -Force | Out-Null
-    $OUList = $global:OUs -split ',\s*'
+    if ($global:WindowsFeatures -Like "*AD-Domain-Services*") {
+        $basePath = 'C:\OUFolders'
+        New-Item -ItemType Directory -Path $basePath -Force | Out-Null
+        $OUList = $global:OUs -split ',\s*'
 
-    for ($i = 0; $i -lt $OUList.Count; $i++) {
-        $OU = $OUList[$i]
-        $folderPath = Join-Path -Path $basePath -ChildPath $OU
-        New-Item -ItemType Directory -Path $folderPath -Force | Out-Null
+        for ($i = 0; $i -lt $OUList.Count; $i++) {
+            $OU = $OUList[$i]
+            $folderPath = Join-Path -Path $basePath -ChildPath $OU
+            New-Item -ItemType Directory -Path $folderPath -Force | Out-Null
 
-        # Add a small delay to ensure the folder is fully created
-        Start-Sleep -Milliseconds 500
+            # Add a small delay to ensure the folder is fully created
+            Start-Sleep -Milliseconds 500
 
-        # Share the folder
-        New-SmbShare -Name $OU -Path $folderPath `
-        -FullAccess "BUILTIN\Administrators", "SYSTEM", "$global:DomainName\$global:DriveFullAccessSMB-SG" `
-        -ChangeAccess "$global:DomainName\$OU-SG"
+            # Share the folder
+            New-SmbShare -Name $OU -Path $folderPath `
+            -FullAccess "BUILTIN\Administrators", "SYSTEM", "$global:DomainName\$global:DriveFullAccessSMB-SG" `
+            -ChangeAccess "$global:DomainName\$OU-SG"
 
-        # Get the current ACL
-        $acl = Get-Acl -Path $folderPath
-        # Enable protection to prevent inheritance
-        $acl.SetAccessRuleProtection($true, $false)
-        # Remove all existing access rules
-        $acl.Access | ForEach-Object {
-            $acl.RemoveAccessRule($_)
+            # Get the current ACL
+            $acl = Get-Acl -Path $folderPath
+            # Enable protection to prevent inheritance
+            $acl.SetAccessRuleProtection($true, $false)
+            # Remove all existing access rules
+            $acl.Access | ForEach-Object {
+                $acl.RemoveAccessRule($_)
+            }
+            Set-Acl -Path $folderPath -AclObject $acl
+
+            # Grant Full Control to SYSTEM and Administrators inheriting the container and object(OI and CI), this is being performed on the subdirectories too and will not stop on errors and display success messages
+            icacls $folderPath /grant "BUILTIN\Administrators:(OI)(CI)F" /T /C /q
+            icacls $folderPath /grant "SYSTEM:(OI)(CI)F" /T /C /q
+
+            # Grant Full Control to the group in the FullAccessSMB variable inheriting the container and object(OI and CI), this is being performed on the subdirectories too and will not stop on errors and display success messages
+            icacls $folderPath /grant "$global:DomainName\$global:DriveFullAccessSMB-SG:(OI)(CI)F" /T /C /q
+
+            # Grant Modify permissions to the OU-specific security group inheriting the container and object(OI and CI), this is being performed on the subdirectories too and will not stop on errors and display success messages
+            icacls $folderPath /grant "$global:DomainName\$OU-SG:(OI)(CI)M" /T /C /q
         }
-        Set-Acl -Path $folderPath -AclObject $acl
-
-        # Grant Full Control to SYSTEM and Administrators inheriting the container and object(OI and CI), this is being performed on the subdirectories too and will not stop on errors and display success messages
-        icacls $folderPath /grant "BUILTIN\Administrators:(OI)(CI)F" /T /C /q
-        icacls $folderPath /grant "SYSTEM:(OI)(CI)F" /T /C /q
-
-        # Grant Full Control to the group in the FullAccessSMB variable inheriting the container and object(OI and CI), this is being performed on the subdirectories too and will not stop on errors and display success messages
-        icacls $folderPath /grant "$global:DomainName\$global:DriveFullAccessSMB-SG:(OI)(CI)F" /T /C /q
-
-        # Grant Modify permissions to the OU-specific security group inheriting the container and object(OI and CI), this is being performed on the subdirectories too and will not stop on errors and display success messages
-        icacls $folderPath /grant "$global:DomainName\$OU-SG:(OI)(CI)M" /T /C /q
     }
 }
 
 function MakeGPOs {
-    $OUList = $global:OUs -split ',\s*'
-    foreach ($OU in $OUList) {
-    New-GPO $OU
+    if ($global:WindowsFeatures -Like "*AD-Domain-Services*") {
+        $OUList = $global:OUs -split ',\s*'
+        foreach ($OU in $OUList) {
+            New-GPO -Name "$OU-GPO"
+        }
     }
 }
 
 function LinkGPOsToOUs {
-    $OUList = $global:OUs -split ',\s*'
-    foreach ($OU in $OUList) {
-    New-GPLink -Name $OU -Target "ou=$OU,dc=$global:DomainName,dc=$global:DomainExtension"
+    if ($global:WindowsFeatures -Like "*AD-Domain-Services*") {
+        $OUList = $global:OUs -split ',\s*'
+        foreach ($OU in $OUList) {
+        New-GPLink -Name $OU -Target "ou=$OU,dc=$global:DomainName,dc=$global:DomainExtension"
+        }
     }
 }
 
 function PrinterSetup {
     if ($global:WindowsFeatures -Like "*Print-Server*") {
-        $global:PrinterPath = "\\$global:ComputerName\$global:PrinterName"
-        set-location $global:PrinterDriverPath
-        pnputil /add-driver $global:PrinterDriverINF -install
-        # Add the printer driver and port
+        pnputil /add-driver "$global:PrinterDriverINFPath\*.inf" -install
+        # Add the printer driver, port and then the printer
         Add-PrinterDriver -Name $global:PrinterDriver
-        Add-PrinterPort -Name "TCPPort:" -PrinterHostAddress $global:PrinterIP
-        Add-Printer -Name $global:PrinterName -DriverName $global:PrinterDriver -PortName "TCPPort:" -Shared -ShareName $global:PrinterPath
+        Add-PrinterPort -Name $global:PrinterIP -PrinterHostAddress $global:PrinterIP
+        Add-Printer -Name $global:PrinterName -DriverName $global:PrinterDriver -PortName $global:PrinterIP -Shared
+        $Printer = Get-CimInstance -Class Win32_Printer -Filter "Name='$global:PrinterName'"
+        Invoke-CimMethod -InputObject $Printer -MethodName SetDefaultPrinter
+        Set-Printer -Name "$global:PrinterName" -Shared $True -ShareName "$global:PrinterName"
     }
 }
 
 function MakeADUsers {
-    $ManualUserCreate = $global:ManualUserCreate.Trim().ToUpper()
-    $Domain = "$global:DomainName.$global:DomainExtension"
-    if ($global:ManualUserCreate -eq "Y") { # Manual User Creation
-        $WantedUsers = Read-Host "How many users do you want to make?"
-        for ($i=1; $i -le $WantedUsers; $i++) { # Goes up by one after earch user untill the imputted value entered before
-            $SAM_Name = Read-Host "What will their username be?"
-            if (Get-ADUser -F { SamAccountName -eq $SAM_Name }) { # If user exist, It'll give a warning
-                Write-Warning "A user account with username $SAM_Name already exists in Active Directory."
-            } else { # User does not exist and can be created
-                $department = Read-Host "What department will they be in?"
-                $firstname = Read-Host "What is your first name?"
-                $lastname = Read-Host "What is your last name?"
-                $password = Read-Host "What will your password be?"
-                $email = Read-Host "What is their email?"
-                $path = "ou=$department,dc=$global:DomainName,dc=$global:DomainExtension"
+    if ($global:WindowsFeatures -Like "*AD-Domain-Services*") {
+        $ManualUserCreate = $global:ManualUserCreate.Trim().ToUpper()
+        $Domain = "$global:DomainName.$global:DomainExtension"
+        if ($global:ManualUserCreate -eq "Y") { # Manual User Creation
+            $WantedUsers = Read-Host "How many users do you want to make?"
+            for ($i=1; $i -le $WantedUsers; $i++) { # Goes up by one after earch user untill the imputted value entered before
+                $SAM_Name = Read-Host "What will their username be?"
+                if (Get-ADUser -F { SamAccountName -eq $SAM_Name }) { # If user exist, It'll give a warning
+                    Write-Warning "A user account with username $SAM_Name already exists in Active Directory."
+                } else { # User does not exist and can be created
+                    $department = Read-Host "What department will they be in?"
+                    $firstname = Read-Host "What is your first name?"
+                    $lastname = Read-Host "What is your last name?"
+                    $password = Read-Host "What will your password be?"
+                    $email = Read-Host "What is their email?"
+                    $path = "ou=$department,dc=$global:DomainName,dc=$global:DomainExtension"
 
-                New-ADUser `
-                -SamAccountName $username `
-                -UserPrincipalName "$username@$UPN" `
-                -Name "$firstname $lastname" `
-                -GivenName $firstname `
-                -Surname $lastname `
-                -Enabled $True `
-                -DisplayName "$lastname, $firstname" `
-                -Department  $department `
-                -Path $path `
-                -EmailAddress $email `
-                -AccountPassword (ConvertTo-secureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False
-                
-                Add-ADGroupMember `
-                -Identity "$Department-SG" `
-                -Members $username
-                # If user is created, show message.
-            Write-Host "The user account $username has been created and added to the '$Department-SG' security group." -ForegroundColor Cyan
-            }
-    }
-} else { # Automatic CSV User Creation
-    $ADUsers = Import-Csv E:\employee-automation.csv -Delimiter ";"
-
-        foreach ($User in $ADUsers) {    # Loop through each row containing user details in the CSV file
-            #Read user data from each field in each row and assign the data to a variable as below
-            $username   = $User.username
-            $password   = $User.password
-            $firstname  = $User.firstname
-            $lastname   = $User.lastname
-            $OU         = $User.ou #This field refers to the OU the user account is to be created in
-            $email      = $User.email
-            $department = $User.department
-            # Checks if the user already exists in the Active Directory
-            if (Get-ADUser -F { SamAccountName -eq $username }) {
-                # If user does exist, give a warning
-                Write-Warning "A user account with username $username already exists in Active Directory."
-            }
-            else {
-                # User does not exist then proceed to create the new user account
-                # Account will be created in the OU provided by the $OU variable read from the CSV file        
-                New-ADUser `
+                    New-ADUser `
                     -SamAccountName $username `
-                    -UserPrincipalName "$username@$Domain" `
+                    -UserPrincipalName "$username@$UPN" `
                     -Name "$firstname $lastname" `
                     -GivenName $firstname `
                     -Surname $lastname `
                     -Enabled $True `
                     -DisplayName "$lastname, $firstname" `
                     -Department  $department `
-                    -Path $OU `
+                    -Path $path `
                     -EmailAddress $email `
                     -AccountPassword (ConvertTo-secureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False
-                Add-ADGroupMember `
-                    -Identity "$department-SG" `
+                    
+                    Add-ADGroupMember `
+                    -Identity "$Department-SG" `
                     -Members $username
                     # If user is created, show message.
-                Write-Host "The user account $username has been created and added to the '$department-SG' security group." -ForegroundColor Cyan
+                Write-Host "The user account $username has been created and added to the '$Department-SG' security group." -ForegroundColor Cyan
+                }
+        }
+        } else { # Automatic CSV User Creation
+        $ADUsers = Import-Csv E:\employee-automation.csv -Delimiter ";"
+
+            foreach ($User in $ADUsers) {    # Loop through each row containing user details in the CSV file
+                #Read user data from each field in each row and assign the data to a variable as below
+                $username   = $User.username
+                $password   = $User.password
+                $firstname  = $User.firstname
+                $lastname   = $User.lastname
+                $OU         = $User.ou #This field refers to the OU the user account is to be created in
+                $email      = $User.email
+                $department = $User.department
+                # Checks if the user already exists in the Active Directory
+                if (Get-ADUser -F { SamAccountName -eq $username }) {
+                    # If user does exist, give a warning
+                    Write-Warning "A user account with username $username already exists in Active Directory."
+                }
+                else {
+                    # User does not exist then proceed to create the new user account
+                    # Account will be created in the OU provided by the $OU variable read from the CSV file        
+                    New-ADUser `
+                        -SamAccountName $username `
+                        -UserPrincipalName "$username@$Domain" `
+                        -Name "$firstname $lastname" `
+                        -GivenName $firstname `
+                        -Surname $lastname `
+                        -Enabled $True `
+                        -DisplayName "$lastname, $firstname" `
+                        -Department  $department `
+                        -Path $OU `
+                        -EmailAddress $email `
+                        -AccountPassword (ConvertTo-secureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False
+                    Add-ADGroupMember `
+                        -Identity "$department-SG" `
+                        -Members $username
+                        # If user is created, show message.
+                    Write-Host "The user account $username has been created and added to the '$department-SG' security group." -ForegroundColor Cyan
+                }
             }
         }
     }
-    Unregister-ScheduledTask -TaskName 'Windows-Server-Setup'
+    if (Get-ScheduledTask -TaskName 'Windows-Server-Setup') {
+        Unregister-ScheduledTask -TaskName 'Windows-Server-Setup'
+    }
     Set-ItemProperty -Path "HKLM:\SYSTEM\ServerScript" -Name "Progress" -Value 0
     if (Test-Path -Path $configFilePath) {
         Remove-Item -Path $configFilePath -Force
@@ -460,9 +482,27 @@ function MakeADUsers {
     netsh DHCP add SecurityGroups
 }
 
-## Actual Running of the configuration functions
+function Menu {
+    Write-Host "Please select an option:" -ForegroundColor Yellow
+    Write-Host "1. Create OUs" -ForegroundColor Cyan
+    Write-Host "2. Create AD Groups" -ForegroundColor Cyan
+    Write-Host "3. Create GPOs" -ForegroundColor Cyan
+    Write-Host "4. Printer Setup" -ForegroundColor Cyan
+    Write-Host "5. Create AD Users" -ForegroundColor Cyan
+    $choice = Read-Host "Enter your choice (1-5)"
+    
+    switch ($choice) {
+        1 { MakeOUs; MakeOUFolders; }
+        2 { MakeADGroups }
+        3 { MakeGPOs; LinkGPOsToOUs; }
+        4 { PrinterSetup }
+        5 { MakeADUsers }
+        default { Write-Warning "Invalid choice, please try again." }
+    }
+}
 
-if (-not (Test-Path -Path 'HKLM:\SYSTEM\ServerScript') -and (-not (Test-Path -Path "C:\ServerConfig.txt"))) {
+## Actual Running of the configuration functions
+if (-not (Test-Path -Path "HKLM:\SYSTEM\ServerScript") -or (-not (Test-Path -Path "C:\ServerConfig.txt"))) {
     BlankOrNotConfig;
 }
 LoadConfigFromFile;
@@ -476,8 +516,7 @@ LoadConfigFromFile;
     if (-not (Get-ItemProperty -Path 'HKLM:\SYSTEM\ServerScript' -Name 'Progress' -ErrorAction SilentlyContinue)) {
         New-ItemProperty -Path 'HKLM:\SYSTEM\ServerScript' -Name 'Progress' -Value 1 -PropertyType DWORD -Force | Out-Null
     }
-$Progress = Get-ItemPropertyValue 'HKLM:\SYSTEM\ServerScript' -Name "Progress"
-
+$Progress = Get-ItemPropertyValue "HKLM:\SYSTEM\ServerScript" -Name "Progress"
 switch ($Progress) { # Looks for the value and runs the result in the switch statement
     0 { 
         Menu 
