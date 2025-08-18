@@ -191,7 +191,7 @@ function BlankOrNotConfig {
 function ComputerSettings {
     ## New scheduled task that will run the powershell script at logon
         # Create the action to run the script
-        $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`""
+        $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$global:scriptPath`""
 
         # Create a trigger to run the task at logon
         $trigger = New-ScheduledTaskTrigger -AtLogOn
@@ -541,5 +541,6 @@ switch ($Progress) { # Looks for the value and runs the result in the switch sta
     }
 
 }
+
 
 
