@@ -1,28 +1,28 @@
 ## Variables for the configuration
     # Computer/Server Settings
         $global:adapter = (Get-NetAdapter -Physical | Select-Object -First 1).ifIndex # Do not touch this, it will automatically get the first network adapter
-        $global:ComputerName = "DCServ" # Change this to whatever you wish it to be
-        $global:ComputerIP = "172.16.1.6" # Change this to whatever you wish it to be between 0 to 255 in each 4 octets
+        $global:ComputerName = "" # Change this to whatever you wish it to be
+        $global:ComputerIP = "" # Change this to whatever you wish it to be between 0 to 255 in each 4 octets
         # Windows Features
-            $global:WindowsFeatures = "AD-Domain-Services, DNS, DHCP, Print-Server" # Separate the Features with ','(e.g., 'AD-Domain-Services, DNS, DHCP')
+            $global:WindowsFeatures = "" # Separate the Features with ','(e.g., 'AD-Domain-Services, DNS, DHCP')
     # AD Configurations if you do use it
-        $global:DomainName = "IT-Prods" # Change this to whatever you wish it to be
-        $global:DomainExtension = "local" # Change this to whatever you wish it to be
-        $global:OUs = "Supportere, Produktion, Levering" # Separate the OUs with ','
-        $global:DriveFullAccessSMB = "Supportere" # What group has access to a drive, which is typically admins and the it supporter group
-        $global:ManualUserCreate = "N" # Either 'Y'es or 'N'o to manually create users
+        $global:DomainName = "" # Change this to whatever you wish it to be
+        $global:DomainExtension = "" # Change this to whatever you wish it to be
+        $global:OUs = "" # Separate the OUs with ','
+        $global:DriveFullAccessSMB = "" # What group has access to a drive, which is typically admins and the it supporter group
+        $global:ManualUserCreate = "" # Either 'Y'es or 'N'o to manually create users
     # DHCP Scope configurations if you do use it
         $global:ScopeName = "$Domain-DHCPScope" # You can change this to whatever you want, but it will be set to the domain name by default(e.g., "$Domain-DHCPScope")
-        $global:StartRangeIP = "172.16.1.100" # Never start with 0 as it will conflict with the ScopeID
-        $global:EndRangeIP = "172.16.1.200" # Never end with 255 as it will conflict with the broadcast
-        $global:SubnetMask = "255.255.255.0" # Change this to whatever you wish it to be between 0 to 255 in each 4 octets
-        $global:Prefix = "24" # Change this to whatever you wish it to be between 0-32, make sure it corrosponds to the subnet mask you made
-        $global:DNSServers = "1.1.1.1, 1.0.0.1" # Change this to whatever you wish it to be between 0 to 255 in each octet, usually you would use googles dns server(8.8.8.8,8.8.4.4) or cloudflares (1.1.1.1,1.1.0.0)
+        $global:StartRangeIP = "" # Never start with 0 as it will conflict with the ScopeID
+        $global:EndRangeIP = "" # Never end with 255 as it will conflict with the broadcast
+        $global:SubnetMask = "" # Change this to whatever you wish it to be between 0 to 255 in each 4 octets
+        $global:Prefix = "" # Change this to whatever you wish it to be between 0-32, make sure it corrosponds to the subnet mask you made
+        $global:DNSServers = "" # Change this to whatever you wish it to be between 0 to 255 in each octet, usually you would use googles dns server(8.8.8.8, 8.8.4.4) or cloudflares (1.1.1.1, 1.1.0.0)
     #Printer Stuff
-        $global:PrinterName = "HP LaserJet M209dwe" # Name for the printer
-        $global:PrinterDriver = "HP LaserJet M207-M212 PCLm-S" # Change this to the driver you want to use, look for the printer driver name inside of the INF file you are using
-        $global:PrinterDriverINFPath = "E:\HPEasyStart-16.2.4-LJM207-M212_U_52_3_4930_Webpack - Drivers" # Path to the driver folder, this is used to add the printer driver
-        $global:PrinterIP = "172.16.1.4" # Change this to whatever you wish it to be between 0 to 255 in each 4 octets
+        $global:PrinterName = "" # Name for the printer
+        $global:PrinterDriver = "" # Change this to the driver you want to use, look for the printer driver name inside of the INF file you are using
+        $global:PrinterDriverINFPath = "" # Path to the driver folder, this is used to add the printer driver
+        $global:PrinterIP = "" # Change this to whatever you wish it to be between 0 to 255 in each 4 octets
 
 ## Functions for the different things
 function BlankOrNotConfig {
@@ -540,4 +540,5 @@ switch ($Progress) { # Looks for the value and runs the result in the switch sta
         PrinterSetup;
         MakeADUsers;
     }
+
 }
