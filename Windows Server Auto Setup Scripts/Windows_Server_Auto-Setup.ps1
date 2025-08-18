@@ -1,4 +1,6 @@
 ## Variables for the configuration
+    # Define the path to the PowerShell script
+        $scriptPath = "e:\Windows_Server_Auto-Setup.ps1"
     # Computer/Server Settings
         $global:adapter = (Get-NetAdapter -Physical | Select-Object -First 1).ifIndex # Do not touch this, it will automatically get the first network adapter
         $global:ComputerName = "" # Change this to whatever you wish it to be
@@ -188,9 +190,6 @@ function BlankOrNotConfig {
 
 function ComputerSettings {
     ## New scheduled task that will run the powershell script at logon
-        # Define the path to the PowerShell script
-        $scriptPath = "e:\Windows_Server_Auto-Setup.ps1"
-
         # Create the action to run the script
         $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`""
 
@@ -542,3 +541,4 @@ switch ($Progress) { # Looks for the value and runs the result in the switch sta
     }
 
 }
+
