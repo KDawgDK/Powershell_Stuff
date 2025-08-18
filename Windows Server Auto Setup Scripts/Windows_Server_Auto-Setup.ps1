@@ -1,6 +1,6 @@
 ## Variables for the configuration
     # Define the path to the PowerShell script
-        $scriptPath = "e:\Windows_Server_Auto-Setup.ps1"
+        $global:scriptPath = "e:\Windows_Server_Auto-Setup.ps1"
     # Computer/Server Settings
         $global:adapter = (Get-NetAdapter -Physical | Select-Object -First 1).ifIndex # Do not touch this, it will automatically get the first network adapter
         $global:ComputerName = "" # Change this to whatever you wish it to be
@@ -541,4 +541,5 @@ switch ($Progress) { # Looks for the value and runs the result in the switch sta
     }
 
 }
+
 
