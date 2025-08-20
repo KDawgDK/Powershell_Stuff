@@ -1,6 +1,6 @@
 ## Variables for the configuration
     # Define the path to the PowerShell script
-        $global:scriptPath = ""
+        $global:scriptPath = "" # Change this to be the path of where the powershell script is
     # Computer/Server Settings
         $global:adapter = (Get-NetAdapter -Physical | Select-Object -First 1).ifIndex # Do not touch this, it will automatically get the first network adapter
         $global:ComputerName = "" # Change this to whatever you wish it to be
@@ -14,7 +14,7 @@
         $global:DriveFullAccessSMB = "" # What group has access to a drive, which is typically admins and the it supporter group
         $global:ManualUserCreate = "" # Either 'Y'es or 'N'o to manually create users
     # DHCP Scope configurations if you do use it
-        $global:ScopeName = "$Domain-DHCPScope" # You can change this to whatever you want, but it will be set to the domain name by default(e.g., "$Domain-DHCPScope")
+        $global:ScopeName = "$DomainName-DHCPScope" # You can change this to whatever you want, but it will be set to the domain name by default(e.g., "$DomainName-DHCPScope")
         $global:StartRangeIP = "" # Never start with 0 as it will conflict with the ScopeID
         $global:EndRangeIP = "" # Never end with 255 as it will conflict with the broadcast
         $global:SubnetMask = "" # Change this to whatever you wish it to be between 0 to 255 in each 4 octets
@@ -541,6 +541,7 @@ switch ($Progress) { # Looks for the value and runs the result in the switch sta
     }
 
 }
+
 
 
 
